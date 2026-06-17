@@ -17,6 +17,7 @@ import {
   getSettings,
   importData,
   putSettings,
+  resetData,
 } from "@/lib/api";
 import {
   ensureNotificationPermission,
@@ -51,6 +52,9 @@ export default function SettingsPage() {
   const [breakText, setBreakText] = useState("");
 
   const [importing, setImporting] = useState(false);
+  // Two-step purge: the danger button reveals an inline confirm before wiping.
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -227,6 +231,23 @@ export default function SettingsPage() {
     },
     [showToast],
   );
+
+  // Purge everything, then hard-navigate home so all client state (active
+  // session, projects, milestones, …) reloads from the now-empty store.
+  const handleReset = useCallback(async () => {
+    setResetting(true);
+    try {
+      await resetData();
+      window.location.href = "/";
+    } catch (e) {
+      setResetting(false);
+      setConfirmingReset(false);
+      showToast({
+        kind: "err",
+        text: e instanceof ApiError ? e.message : "Couldn't reset your data.",
+      });
+    }
+  }, [showToast]);
 
   const perm = notificationPermission();
   const permBadge: { tone: "success" | "danger" | "muted"; label: string } =
@@ -483,6 +504,77 @@ export default function SettingsPage() {
                 when set, API routes require the passphrase before reading or
                 writing data.
               </p>
+            </Card>
+          </section>
+
+          {/* Danger zone — purge everything and start fresh */}
+          <section
+            aria-labelledby="danger-heading"
+            className="animate-fade-up"
+            style={{ animationDelay: "300ms" }}
+          >
+            <SectionLabel id="danger-heading">
+              <span className="text-danger">Danger zone</span>
+            </SectionLabel>
+            <Card className="border-danger/40 p-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-text">
+                  Reset everything
+                </span>
+                <span className="text-xs text-muted">
+                  Permanently delete all projects, milestones, sessions,
+                  history, schedule, and settings, and start fresh. Any
+                  in-progress session is discarded. This cannot be undone —
+                  export a backup first if you might want it back.
+                </span>
+              </div>
+
+              {confirmingReset ? (
+                <div className="mt-3 flex flex-col gap-3 rounded-xl border border-danger/40 bg-danger/10 p-3">
+                  <span className="font-mono text-xs uppercase tracking-wider text-danger">
+                    Delete all data and start fresh?
+                  </span>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      disabled={resetting}
+                      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-danger px-4 text-sm font-semibold text-bg transition-[filter] hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+                    >
+                      <svg
+                        {...iconProps}
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-9 0v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6" />
+                        <path d="M10 11v6M14 11v6" />
+                      </svg>
+                      {resetting ? "Deleting…" : "Yes, delete everything"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingReset(false)}
+                      disabled={resetting}
+                      className="btn-secondary h-11 px-4 text-sm disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingReset(true)}
+                  className="mt-3 inline-flex h-11 items-center justify-center gap-2 self-start rounded-xl border border-danger/50 bg-danger/10 px-4 text-sm font-semibold text-danger transition-colors hover:bg-danger/20 active:scale-[0.99]"
+                >
+                  <svg {...iconProps} width={16} height={16} aria-hidden="true">
+                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-9 0v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6" />
+                    <path d="M10 11v6M14 11v6" />
+                  </svg>
+                  Reset all data…
+                </button>
+              )}
             </Card>
           </section>
         </div>

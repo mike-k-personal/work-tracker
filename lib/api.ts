@@ -382,3 +382,15 @@ export async function importData(doc: unknown): Promise<Doc> {
   );
   return saved;
 }
+
+// ----------------------------------------------------------------------------
+// Reset
+// ----------------------------------------------------------------------------
+
+/** POST /api/reset — purge ALL data and restore defaults. Irreversible. */
+export async function resetData(): Promise<boolean> {
+  const { ok } = await request<{ ok: boolean }>("/api/reset", {
+    method: "POST",
+  });
+  return ok;
+}
