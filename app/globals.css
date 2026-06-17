@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
+/* Work Tracker — dark, minimal, mobile-first theme.
+ * Dark is the default and only theme (no toggle). Tokens are exposed both as
+ * CSS variables and as Tailwind color/spacing utilities via @theme. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette (near-black surfaces, light text, indigo accent). */
+  --bg: #0a0a0a; /* app background */
+  --surface: #151518; /* cards, panels, raised UI */
+  --surface-2: #1f1f24; /* inputs, hover, secondary surface */
+  --border: #2a2a31; /* hairline borders */
+  --text: #ededed; /* primary text */
+  --muted: #9a9aa5; /* secondary / labels */
+  --accent: #6366f1; /* indigo-500 — primary accent */
+  --accent-hover: #7c7ff3;
+  --accent-contrast: #ffffff; /* text on accent */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  /* System font stack + a mono stack for the big timer. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  /* Respect iOS safe areas / notches for the standalone PWA. */
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  /* Comfortable defaults for a focus app. */
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Avoid bounce/overscroll glow inside the installed app. */
+  overscroll-behavior-y: none;
+}
+
+/* Large, comfortable tap targets on touch devices. */
+button,
+[role="button"],
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 40%, transparent);
+}
+
+/* Tabular numerals so the timer doesn't jitter as digits change. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

@@ -1,65 +1,257 @@
-import Image from "next/image";
+"use client";
+
+// app/page.tsx — Home / the core screen.
+//
+// No active session  -> today's Timeline + a centered StartPanel (and a quick
+//                       break action lives in StartPanel).
+// Active session     -> the ActiveSession focus view, with a compact timeline
+//                       kept visible for orientation.
+//
+// On load, if a running work/break session has a stale lastSeenAt (we were away
+// > ~20s), ReloadPrompt is shown first so the away time can be reconciled.
+//
+// The single useActiveSession instance owns fetch + tick + heartbeat + actions.
+// Schedule + settings are fetched here for the timeline and default durations.
+// The post-work BreakPrompt is rendered at THIS level (not inside ActiveSession)
+// so it survives the active session being cleared on End.
+
+import { useCallback, useEffect, useState } from "react";
+
+import type { Objective, Project, Schedule, Settings } from "@/lib/types";
+import { effectiveBlocks } from "@/lib/schedule";
+import {
+  getSchedule,
+  getSettings,
+  getProjects,
+  createProject,
+} from "@/lib/api";
+import { useActiveSession } from "@/lib/useActiveSession";
+
+import Timeline from "@/components/Timeline";
+import StartPanel from "@/components/StartPanel";
+import ActiveSession from "@/components/ActiveSession";
+import ReloadPrompt from "@/components/ReloadPrompt";
+import BreakPrompt from "@/components/BreakPrompt";
+
+const DEFAULT_SETTINGS: Settings = {
+  defaultWorkMin: 50,
+  defaultBreakMin: 10,
+  notificationsEnabled: true,
+  soundEnabled: true,
+};
 
 export default function Home() {
+  const s = useActiveSession();
+  const {
+    active,
+    loading,
+    now,
+    awayMs,
+    applyAway,
+    end,
+    cancel,
+    startBreak,
+    pause,
+    resume,
+    extend,
+    setObjectives,
+    startWork,
+  } = s;
+
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [awayBusy, setAwayBusy] = useState(false);
+  const [breakPromptOpen, setBreakPromptOpen] = useState(false);
+  const [breakBusy, setBreakBusy] = useState(false);
+
+  // Fetch settings + schedule + projects once. Failures fall back to sane
+  // defaults so the start panel and timeline still render.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const [st, sc, pr] = await Promise.all([
+          getSettings(),
+          getSchedule(),
+          getProjects(),
+        ]);
+        if (!alive) return;
+        setSettings(st);
+        setSchedule(sc);
+        setProjects(pr);
+      } catch {
+        // keep defaults; timeline shows its empty state
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Create a project and add it to the local list so it appears in the picker.
+  const onCreateProject = useCallback(async (name: string) => {
+    try {
+      const p = await createProject(name);
+      setProjects((prev) =>
+        prev.some((x) => x.id === p.id) ? prev : [...prev, p],
+      );
+      return p;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Tick "today" so the timeline window/now-line stay current across midnight.
+  const todayBlocks = schedule
+    ? effectiveBlocks(schedule, new Date(now))
+    : [];
+
+  // --- ReloadPrompt wiring -------------------------------------------------
+  const showReload = awayMs > 0 && active != null;
+
+  const onCountAsWork = useCallback(async () => {
+    setAwayBusy(true);
+    try {
+      await applyAway("work");
+    } finally {
+      setAwayBusy(false);
+    }
+  }, [applyAway]);
+
+  const onDontCount = useCallback(async () => {
+    setAwayBusy(true);
+    try {
+      await applyAway("discard");
+    } finally {
+      setAwayBusy(false);
+    }
+  }, [applyAway]);
+
+  const onAwayEnd = useCallback(async () => {
+    setAwayBusy(true);
+    try {
+      const log = await end("manual");
+      if (log && log.kind === "work") setBreakPromptOpen(true);
+    } finally {
+      setAwayBusy(false);
+    }
+  }, [end]);
+
+  const onAwayCancel = useCallback(async () => {
+    setAwayBusy(true);
+    try {
+      await cancel();
+    } finally {
+      setAwayBusy(false);
+    }
+  }, [cancel]);
+
+  // --- BreakPrompt wiring (post-work) --------------------------------------
+  const onStartBreakFromPrompt = useCallback(
+    async (estimateMs: number) => {
+      setBreakBusy(true);
+      try {
+        await startBreak({ estimateMs });
+        setBreakPromptOpen(false);
+      } finally {
+        setBreakBusy(false);
+      }
+    },
+    [startBreak],
+  );
+
+  // --- StartPanel wiring ---------------------------------------------------
+  const onStartWork = useCallback(
+    (input: {
+      projectId: string | null;
+      taskName: string;
+      objectives: Objective[];
+      estimateMs: number;
+    }) => startWork(input),
+    [startWork],
+  );
+
+  const onStartBreakAdhoc = useCallback(
+    (estimateMs: number) => startBreak({ estimateMs }),
+    [startBreak],
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-1 flex-col p-4 sm:p-6">
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      ) : active ? (
+        // ---------- ACTIVE: focus view + compact timeline ----------
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+          <div className="flex-1 pt-6 lg:pt-10">
+            <ActiveSession
+              session={active}
+              now={now}
+              soundEnabled={settings.soundEnabled}
+              notificationsEnabled={settings.notificationsEnabled}
+              pause={pause}
+              resume={resume}
+              extend={extend}
+              setObjectives={setObjectives}
+              end={end}
+              cancel={cancel}
+              onWorkEnded={() => setBreakPromptOpen(true)}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <aside className="w-full shrink-0 lg:w-72">
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+              Today
+            </h2>
+            <Timeline blocks={todayBlocks} now={now} pxPerMin={1.1} />
+          </aside>
         </div>
-      </main>
+      ) : (
+        // ---------- IDLE: timeline + start panel ----------
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+          <aside className="order-2 w-full shrink-0 lg:order-1 lg:w-72">
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+              Today
+            </h2>
+            <Timeline blocks={todayBlocks} now={now} />
+          </aside>
+          <div className="order-1 flex flex-1 items-start justify-center pt-2 lg:order-2 lg:pt-10">
+            <StartPanel
+              projects={projects}
+              defaultWorkMin={settings.defaultWorkMin}
+              defaultBreakMin={settings.defaultBreakMin}
+              onStartWork={onStartWork}
+              onStartBreak={onStartBreakAdhoc}
+              onCreateProject={onCreateProject}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Away-time reconciliation on return to a running session */}
+      {showReload && active && (
+        <ReloadPrompt
+          awayMs={awayMs}
+          kind={active.kind}
+          busy={awayBusy}
+          onCountAsWork={onCountAsWork}
+          onDontCount={onDontCount}
+          onEnd={onAwayEnd}
+          onCancel={onAwayCancel}
+        />
+      )}
+
+      {/* Pomodoro break prompt after a work session ends */}
+      {breakPromptOpen && !active && (
+        <BreakPrompt
+          defaultBreakMin={settings.defaultBreakMin}
+          busy={breakBusy}
+          onStartBreak={onStartBreakFromPrompt}
+          onSkip={() => setBreakPromptOpen(false)}
+        />
+      )}
     </div>
   );
 }
