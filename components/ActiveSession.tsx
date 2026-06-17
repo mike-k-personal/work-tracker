@@ -1,8 +1,11 @@
 "use client";
 
 // components/ActiveSession.tsx
-// The live focus view. It orchestrates a running work OR break session:
-//   - big Timer (remaining recomputed every tick from immutable timestamps),
+// The live focus view — the app's hero instrument. It orchestrates a running
+// work OR break session:
+//   - a circular-ring Timer (remaining recomputed every tick from immutable
+//     timestamps),
+//   - a live status dot (animate-pulse-glow) + MILESTONE/PROJECT context badges,
 //   - editable ObjectiveList (work only; persisted via the hook's setObjectives;
 //     auto-prompts to finish when every objective is checked),
 //   - Pause / Resume,
@@ -31,6 +34,8 @@ import { playChime } from "@/lib/sound";
 import { notify } from "@/lib/notify";
 import type { UseActiveSession } from "@/lib/useActiveSession";
 
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import Timer from "@/components/Timer";
 import ObjectiveList from "@/components/ObjectiveList";
 import ExtendControls from "@/components/ExtendControls";
@@ -111,7 +116,8 @@ export default function ActiveSession({
   // Derived during render (no mirroring effect): show the nudge when every
   // objective is done and the user hasn't dismissed it.
   const total = session.objectives.length;
-  const allDone = total > 0 && session.objectives.every((o) => o.done);
+  const doneCount = session.objectives.filter((o) => o.done).length;
+  const allDone = total > 0 && doneCount === total;
   const askedFinish = isWork && allDone && !finishDismissed;
 
   // --- actions -------------------------------------------------------------
@@ -120,8 +126,7 @@ export default function ActiveSession({
       // Re-arm the finish nudge once the list is no longer all-done, so it can
       // reappear after the user re-completes everything. Done in the handler
       // (not an effect) to avoid a cascading render.
-      const nextAllDone =
-        next.length > 0 && next.every((o) => o.done);
+      const nextAllDone = next.length > 0 && next.every((o) => o.done);
       if (!nextAllDone) setFinishDismissed(false);
       void setObjectives(next);
     },
@@ -153,30 +158,85 @@ export default function ActiveSession({
     }
   }, [busy, cancel]);
 
-  const accentText = isWork ? "text-accent" : "text-success";
-  const accentDot = isWork ? "bg-accent" : "bg-success";
+  // Status-line tone: live → accent/success, paused → muted, over → danger.
+  const statusTone = expired
+    ? "text-danger"
+    : paused
+      ? "text-faint"
+      : isWork
+        ? "text-accent"
+        : "text-success";
+  const statusDot = expired
+    ? "bg-danger"
+    : isWork
+      ? "bg-accent"
+      : "bg-success";
+  const statusLabel = expired
+    ? isWork
+      ? "Over time"
+      : "Break over"
+    : paused
+      ? "Paused"
+      : isWork
+        ? "Focusing"
+        : "On break";
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center">
-      {/* Header: kind + task name */}
-      <div className="mb-1 flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${accentDot}`} aria-hidden="true" />
-        <span
-          className={`text-xs font-semibold uppercase tracking-[0.18em] ${accentText}`}
-        >
-          {isWork ? "Focus" : "Break"}
+    <Card
+      className={`mx-auto w-full max-w-md overflow-hidden p-6 sm:p-7 ${
+        expired ? "border-danger/40" : ""
+      }`}
+    >
+      {/* Status line: live dot + state */}
+      <div className="mb-5 flex items-center justify-center gap-2">
+        <span className="relative flex h-2 w-2">
+          {!paused && (
+            <span
+              className={`animate-pulse-glow absolute inline-flex h-full w-full rounded-full ${statusDot}`}
+              aria-hidden="true"
+            />
+          )}
+          <span
+            className={`relative inline-flex h-2 w-2 rounded-full ${statusDot}`}
+            aria-hidden="true"
+          />
         </span>
+        <span className={`eyebrow ${statusTone}`}>{statusLabel}</span>
       </div>
-      {isWork && session.projectName && (
-        <p className="mb-1 max-w-full truncate text-center text-sm font-medium text-muted">
-          {session.projectName}
-        </p>
+
+      {/* Project + milestone context as instrument badges */}
+      {isWork && (session.projectName || session.milestoneName) && (
+        <div className="mb-3 flex max-w-full flex-wrap items-center justify-center gap-1.5">
+          {session.projectName && (
+            <Badge tone="accent">{session.projectName}</Badge>
+          )}
+          {session.milestoneName && (
+            <Badge tone="default">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 4v16M5 5h11l-2 3 2 3H5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {session.milestoneName}
+            </Badge>
+          )}
+        </div>
       )}
-      <h1 className="mb-6 max-w-full truncate text-center text-2xl font-semibold tracking-tight">
+
+      <h1 className="font-display mb-7 max-w-full truncate text-center text-2xl font-semibold tracking-tight text-text">
         {session.taskName}
       </h1>
 
-      {/* Big timer */}
+      {/* The gauge */}
       <Timer
         remainingMs={remainingMs}
         activeMs={activeMs}
@@ -187,28 +247,44 @@ export default function ActiveSession({
 
       {/* Expired banner + extend controls */}
       {expired && (
-        <div className="mt-6 flex w-full flex-col gap-3">
+        <div className="mt-7 flex w-full flex-col gap-3">
           <ExpiredBanner kind={session.kind} overMs={-remainingMs} />
           <ExtendControls onExtend={(ms) => extend(ms)} disabled={busy} />
         </div>
       )}
 
       {/* Primary controls */}
-      <div className="mt-7 flex w-full items-center justify-center gap-3">
+      <div className="mt-8 flex w-full items-center justify-center gap-3">
         {paused ? (
           <button
             type="button"
             onClick={() => void resume()}
-            className="flex-1 rounded-2xl bg-accent px-4 py-3.5 text-base font-semibold text-accent-contrast transition-colors hover:bg-accent-hover"
+            className="btn-primary flex-1 px-4 py-3.5 text-base"
           >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
             Resume
           </button>
         ) : (
           <button
             type="button"
             onClick={() => void pause()}
-            className="flex-1 rounded-2xl border border-border bg-surface-2 px-4 py-3.5 text-base font-semibold transition-colors hover:border-accent"
+            className="btn-secondary flex-1 px-4 py-3.5 text-base"
           >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M7 5h3v14H7zM14 5h3v14h-3z" />
+            </svg>
             Pause
           </button>
         )}
@@ -216,31 +292,31 @@ export default function ActiveSession({
           type="button"
           disabled={busy}
           onClick={() => void doEnd(expired ? "timer-expired" : "manual")}
-          className="flex-1 rounded-2xl bg-surface-2 px-4 py-3.5 text-base font-semibold text-text transition-colors hover:bg-border disabled:opacity-40"
+          className="btn-secondary flex-1 px-4 py-3.5 text-base"
         >
           {isWork ? "End session" : "End break"}
         </button>
       </div>
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={doCancel}
-        className="mt-2 rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-danger disabled:opacity-40"
-      >
-        Cancel (won&apos;t count toward stats)
-      </button>
+      <div className="mt-3 flex justify-center">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={doCancel}
+          className="readout rounded-lg px-3 py-1.5 text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-faint transition-colors hover:text-danger disabled:opacity-40"
+        >
+          Cancel · won&apos;t count
+        </button>
+      </div>
 
-      {/* Objectives (work only) */}
+      {/* Tasks (work only) */}
       {isWork && (
-        <div className="mt-8 w-full">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted">
-              Objectives
-            </span>
+        <div className="mt-7 w-full border-t border-border pt-6">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="eyebrow text-muted">Tasks</span>
             {total > 0 && (
-              <span className="text-xs text-muted tabular-nums">
-                {session.objectives.filter((o) => o.done).length} / {total}
+              <span className="readout text-xs text-muted">
+                {doneCount} / {total}
               </span>
             )}
           </div>
@@ -252,9 +328,25 @@ export default function ActiveSession({
 
           {/* Auto-prompt to finish when everything is checked */}
           {askedFinish && (
-            <div className="mt-3 flex items-center gap-3 rounded-2xl border border-success/40 bg-success/10 px-4 py-3">
+            <div className="animate-fade-up mt-3 flex items-center gap-3 rounded-2xl border border-success/40 bg-success/10 px-4 py-3 shadow-[0_0_18px_-6px_rgb(74_222_128_/_0.4)]">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 13l4 4L19 7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
               <p className="flex-1 text-sm font-medium text-success">
-                All objectives done — finish up?
+                All tasks done — finish up?
               </p>
               <button
                 type="button"
@@ -276,6 +368,6 @@ export default function ActiveSession({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

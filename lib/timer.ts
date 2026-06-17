@@ -160,6 +160,8 @@ export function finalizeToLog(
     kind: session.kind,
     projectId: session.projectId,
     projectName: session.projectName,
+    milestoneId: session.milestoneId,
+    milestoneName: session.milestoneName,
     taskName: session.taskName,
     objectives: session.objectives,
     status,

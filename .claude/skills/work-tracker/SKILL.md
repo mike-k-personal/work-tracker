@@ -1,20 +1,21 @@
 ---
 name: work-tracker
-description: High-level architecture map of THIS app (the Work Tracker day-planner + Pomodoro PWA). Read this first when working anywhere in this repo — it explains the mental model, data model, timer math, storage driver, file layout, and conventions so you can act without exploring the codebase. Use for any change to sessions, breaks, the schedule, history, dashboard/metrics, the timer, the store, or the PWA.
+description: High-level architecture map of THIS app (the Work Tracker project/goal planner + focus-session PWA). Read this first when working anywhere in this repo — it explains the mental model, data model, timer math, storage driver, file layout, and conventions so you can act without exploring the codebase. Use for any change to projects, milestones, sessions, breaks, the schedule, history, dashboard/metrics, the timer, the store, the design system, or the PWA.
 ---
 
 # Work Tracker — architecture overview
 
-> **Keep this skill current.** This file is the source of truth for how the app works. Whenever you make a change that alters app behavior or anything described here — the data model, storage keys/driver, timer math, routes/API actions, the file map, conventions, or run/deploy steps — update the relevant section of this file **in the same change**, before you finish. Treat the doc edit as part of the task, not a follow-up. If a change makes a statement here wrong, fix the statement. Purely internal refactors that don't change any documented behavior don't need an update.
+> **Keep this skill current.** This file is the source of truth for how the app works. Whenever you make a change that alters app behavior or anything described here — the data model, storage keys/driver, timer math, routes/API actions, the file map, the design system, or conventions — update the relevant section of this file **in the same change**, before you finish. Treat the doc edit as part of the task. Purely internal refactors that don't change documented behavior don't need an update.
 
-Personal, **single-user** day-planner + focus/Pomodoro tracker, shipped as an installable **PWA**. Next.js 16 (App Router, Turbopack), TypeScript, Tailwind v4, dark-only, mobile-first. No auth.
+Personal, **single-user** project/goal planner + focus-session tracker, shipped as an installable **PWA**. Next.js 16 (App Router, Turbopack), TypeScript, Tailwind v4, dark-only, **blue-themed**, mobile-first. No auth.
 
-## Mental model (two layers)
+## Mental model (three layers)
 
-1. **Conceptual schedule — a guide only.** Work/break **blocks** with clock times tell you "what you *should* be doing now." It renders a timeline + a "now" line and can nudge at block transitions. It **never** starts/stops timers or enforces anything. Each day-of-week is classified as a **work** or **off** day (`dayTypes`); there are exactly **two reusable templates** (`templates.work` / `templates.off`) and a day inherits the template matching its type. Per-**date overrides** win over the template for a single date.
-2. **Actual tracking — the only thing that counts.** You run real **work sessions** and **breaks** (the timer). Each work session is tagged to a **Project** (the top-level grouping for time-per-project metrics); its `taskName` is the free-text "main objective" and `objectives[]` are the sub-objectives (typed fresh per session). Breaks are project-less. Any time not covered by a logged work session is treated as break/idle. Pomodoro: ending a work session prompts a break.
+1. **Planning — Projects → Milestones.** A **Project** is the top-level unit of work; you plan it as an ordered set of **Milestones** (a.k.a. objectives), each with a **`targetDate`** (the day you planned to finish it). A project is **done** when every milestone is done (or it's manually completed via `completedAt`). The **Dashboard** is the home of planning/overview; per-project milestone management lives on the **project detail** page. Progress (% milestones done) and **ahead/behind-schedule** status are *derived* (never stored) by `lib/projects.ts`.
+2. **Actual tracking — the only thing that counts.** You run real **work sessions** and **breaks** (the timer). A work session is anchored to a **Milestone** (which implies its Project): the session's `taskName` = the milestone title, and `objectives[]` are the **tasks** you complete during that one session. Breaks are milestone-/project-less. Any time not covered by a logged work session is treated as break/idle. Pomodoro: ending a work session prompts a break.
+3. **Conceptual schedule — a passive guide only.** Work/break **blocks** with clock times say "what you *should* be doing now"; it renders a timeline + "now" line and can nudge at transitions. It **never** starts/stops timers. It now lives **under Settings** (linked from `/settings`, page at `/schedule`), de-emphasized from the primary nav. Each day-of-week is a **work** or **off** day (`dayTypes`); two reusable templates (`templates.work`/`templates.off`); per-**date overrides** win for a single date. Still used by metrics to infer idle-break gaps inside scheduled work windows.
 
-Don't conflate them: blocks ≠ sessions. Blocks are passive reference; sessions/breaks are the logged reality.
+Don't conflate them: milestones ≠ sessions ≠ blocks. Milestones are the plan; sessions/breaks are logged reality; blocks are passive reference.
 
 ## Data & storage
 
@@ -22,51 +23,68 @@ Don't conflate them: blocks ≠ sessions. Blocks are passive reference; sessions
 - **Upstash Redis** (`@upstash/redis`) when `UPSTASH_REDIS_REST_URL`+`_TOKEN` (or `KV_REST_API_URL`/`KV_REST_API_TOKEN`) are set. Required in production (Vercel fs is read-only). `isCloudStore()` reports which.
 - **Local JSON file** fallback at `./.data/wt.json` (git-ignored): atomic temp-file rename + in-process mutex + defensive parse, missing key → typed defaults.
 
-Five keys (`STORE_KEYS` in `lib/types.ts`): `wt:active`, `wt:logs`, `wt:projects`, `wt:schedule`, `wt:settings`. The local file holds them as one `Doc` object (`active`/`logs`/`projects`/`schedule`/`settings`).
+Six keys (`STORE_KEYS` in `lib/types.ts`): `wt:active`, `wt:logs`, `wt:projects`, `wt:milestones`, `wt:schedule`, `wt:settings`. The local file holds them as one `Doc` (`active`/`logs`/`projects`/`milestones`/`schedule`/`settings`).
 
-**Types (`lib/types.ts`):** `Block{ id,type:'work'|'break',label,start,end }` (`start`/`end` = `"HH:MM"`), `Objective{ id,text,done,createdAt }`, `Project{ id,name,createdAt,archived? }`, `ActiveSession`/`LogEntry` (both carry `projectId:string|null` + denormalized `projectName:string` — `null`/`""` for breaks & unassigned), `Settings{ defaultWorkMin,defaultBreakMin,notificationsEnabled,soundEnabled }`, `DayType='work'|'off'`, `Schedule{ dayTypes:Record<0..6,DayType>, templates:{work:Block[],off:Block[]}, overrides:Record<"YYYY-MM-DD",Block[]> }`, `Doc`.
+**Types (`lib/types.ts`):**
+- `Project{ id,name,createdAt,archived?,description?,startDate?:string|null,completedAt?:number|null }` (`startDate` = local `"YYYY-MM-DD"`, used to pace schedule status).
+- `Milestone{ id,projectId,title,done,doneAt:number|null,targetDate:string|null("YYYY-MM-DD"),order,createdAt }`.
+- `Objective{ id,text,done,createdAt }` — a **task** within a single session (UI calls them "tasks"; the type stays `Objective`).
+- `Block{ id,type:'work'|'break',label,start,end }` (`start`/`end` = `"HH:MM"`).
+- `ActiveSession`/`LogEntry` both carry `projectId:string|null` + denormalized `projectName`, **plus `milestoneId:string|null` + denormalized `milestoneName`** (`null`/`""` for breaks & unassigned), `taskName`, `objectives[]`.
+- `Settings{ defaultWorkMin,defaultBreakMin,notificationsEnabled,soundEnabled }`, `DayType`, `Schedule{ dayTypes, templates:{work,off}, overrides }`, `Doc`.
 
-Typed store accessors: `getActive/setActive`, `getLogs/setLogs/appendLog/updateLog/deleteLog`, `getProjects/setProjects/addProject`(idempotent on name)`/updateProject`, `getSchedule/setSchedule`, `getSettings/setSettings`, `getAll/setAll`.
+Typed store accessors: `getActive/setActive`, `getLogs/setLogs/appendLog/updateLog/deleteLog`, `getProjects/setProjects/addProject`(idempotent on name)`/updateProject`(name/archived/description/startDate/completedAt)`/deleteProject`(cascades milestones), `getMilestones/setMilestones/addMilestone`(appends with next `order`)`/updateMilestone`(syncs `doneAt` on done-toggle)`/deleteMilestone`, `getSchedule/setSchedule`, `getSettings/setSettings`, `getAll/setAll`.
+
+## Project/milestone logic (`lib/projects.ts`) — derive, never store
+
+Pure helpers (no I/O); dates are local `"YYYY-MM-DD"` keys (consistent with `format.dayKey`):
+- `progressOf(milestones)` → `{total,done,pct}`.
+- `isProjectComplete(project,milestones)`; `projectMilestones(all,projectId)` (sorted by `order`→`targetDate`→`createdAt`); `nextOpenMilestone(milestones)`; `compareMilestones`.
+- `scheduleStatus(project,milestones,now?)` → `{state:'ahead'|'on-track'|'behind'|'no-plan'|'done', daysDelta(signed), overdueCount, nextMilestone, label}`. Blends two signals: **overdue** open milestones (past `targetDate`) ⇒ behind; and **pace** (actual %-done vs expected %-done by elapsed time between `startDate`/first-milestone and the last `targetDate`) ⇒ the signed `daysDelta`. Badge tones: ahead→success, on-track→accent, behind→danger, no-plan→muted, done→success.
+- `dayKeyToEpoch("YYYY-MM-DD")`, `daysBetween(aKey,bKey)`.
 
 ## Timer model (`lib/timer.ts`) — derive, never decrement
 
-Time is **always recomputed from timestamps**, never stored as a ticking counter (survives reloads/background-throttle with no drift).
+Time is **always recomputed from timestamps**, never a ticking counter (survives reloads/throttle, no drift).
 - `activeMs = accumulatedActiveMs + (runningSince ? now - runningSince : 0)`; `budgetMs = estimateMs + extensionsMs`; `remainingMs = budgetMs - activeMs` (negative ⇒ "over", no auto-end).
-- `pauseSession` folds the live segment into `accumulatedActiveMs`, nulls `runningSince` (paused time excluded). `resumeSession` sets `runningSince=now`.
-- `extendSession` grows `extensionsMs` only (the target, not elapsed). **Estimate accuracy is vs original `estimateMs`, not budget.**
-- `applyAway(session, 'work'|'discard', now)` reconciles a reload while running, using `lastSeenAt` (the ~25s heartbeat anchor). `finalizeToLog` freezes a session into a `LogEntry`.
-- `touchSession` bumps `lastSeenAt`. Reload prompt threshold: away < ~20s ⇒ resume silently.
+- `pauseSession` folds the live segment into `accumulatedActiveMs`; `resumeSession` sets `runningSince=now`. `extendSession` grows `extensionsMs` (the target, not elapsed). Estimate accuracy is vs **original `estimateMs`**.
+- `applyAway(session,'work'|'discard',now)` reconciles a reload while running using `lastSeenAt` (~25s heartbeat anchor). `finalizeToLog` freezes a session into a `LogEntry` (copies `projectId/projectName/milestoneId/milestoneName`). `touchSession` bumps `lastSeenAt`. Reload threshold: away < ~20s ⇒ resume silently.
 
 ## Routes & file map
 
 **Pages (`app/`)** — all interactive ones are `"use client"`:
-- `page.tsx` Home: today's `Timeline` + `StartPanel` (no active) **or** `ActiveSession` (active). `StartPanel` flow = pick/add **Project** → **Main objective** (taskName) → **Sub-objectives** → duration → start (work start is blocked until a project is chosen; breaks need none). Home fetches projects + owns `onCreateProject`. Shows `ReloadPrompt` on stale-running load, `BreakPrompt` after a work session ends.
-- `schedule/page.tsx` two tabs: **Weekly** (toggle each weekday work/off + edit the work-day and off-day templates) and **Date overrides** (per-date custom day); both use `ScheduleEditor`/`BlockRow` with a live `Timeline` preview.
-- `history/page.tsx` + `history/[id]/page.tsx` day-grouped log, detail, edit/delete (`HistoryList`/`EntryEditor`).
-- `dashboard/page.tsx` metrics cards + **Time-by-project** breakdown + 14-day chart (`MetricsCards`/`ActivityChart`).
-- `settings/page.tsx` Pomodoro defaults, alert toggles, test buttons, backup export/import.
+- `page.tsx` **Focus/Home** (the landing page): today's `Timeline` + `StartPanel` (no active) **or** `ActiveSession` (active). `StartPanel` flow = **pick the Milestone** you're working toward (grouped by project via `<optgroup>`; the project is *implied*, no separate project/main-objective step) → list **Tasks** for this session (`ObjectiveList`) → duration → start. Work start requires a milestone; breaks need none. Planning/creation happens on the Dashboard, not here. Shows `ReloadPrompt` on stale-running load, `BreakPrompt` after a work session ends.
+- `dashboard/page.tsx` **Dashboard** (the main overview): fetches projects+milestones+logs; a summary strip (active count / due-this-week / overdue), a grid of `ProjectCard` for active projects (progress, next milestone+date, schedule-status badge, focus time → link to project detail), plus compact completed/archived lists, and an inline "+ New project".
+- `projects/[id]/page.tsx` **Project detail**: reads id via `useParams()`; `ProjectEditor` (name/description/startDate, archive, complete/reopen, delete) + `MilestoneList`/`MilestoneRow` (add milestone, toggle done, inline-edit title, set `targetDate`, overdue styling, delete) + progress/schedule/focus-time. `projects/page.tsx` just redirects to `/dashboard`.
+- `metrics/page.tsx` **Metrics**: range toggle (today/week/all); `MetricsCards` (productive hours, streak, sessions, tasks done, avg/median, estimate accuracy, peak hour, work/break); **time-by-milestone** + **time-by-project** via `MilestoneBreakdown`; 14-day `ActivityChart`.
+- `history/page.tsx` + `history/[id]/page.tsx` day-grouped log; entries show project + milestone badges; edit/delete (`HistoryList`/`EntryEditor`).
+- `settings/page.tsx` Pomodoro defaults, alert toggles + tests, backup export/import, **and a "Daily schedule" card linking to `/schedule`**.
+- `schedule/page.tsx` two tabs (Weekly / Date overrides) using `ScheduleEditor`/`BlockRow` + live `Timeline`; back-link to Settings. (Not in the primary nav.)
 
 **API route handlers (`app/api/`)** — `force-dynamic`, the only server logic:
-- `active/route.ts`: `GET` read · `POST` start · `DELETE` cancel · `PATCH` with `action` ∈ `pause|resume|extend|heartbeat|setObjectives|applyAway|startBreak|end` (`end` returns the created `LogEntry` so the client can show the break prompt).
-- `logs/route.ts` `GET`; `logs/[id]/route.ts` `PATCH`(can reassign `projectId`, re-snapshots `projectName`)/`DELETE` (Next 16: `params` is async — `await params`).
-- `projects/route.ts` `GET` list / `POST` create-by-name.
-- `schedule/route.ts` `GET`/`PUT`; `settings/route.ts` `GET`/`PUT`; `backup/route.ts` `GET` export / `POST` import.
-- On `POST /api/active` the server resolves the project name from `projectId` and snapshots both onto the session (so `finalizeToLog` just copies them — `lib/timer` stays project-agnostic).
+- `active/route.ts`: `GET`/`POST`(start)/`DELETE`(cancel)/`PATCH` with `action` ∈ `pause|resume|extend|heartbeat|setObjectives|applyAway|startBreak|end`. On `POST`, resolves project from `projectId` **and** milestone from `milestoneId` (must belong to the project), snapshotting both names onto the session so `finalizeToLog` just copies them.
+- `logs/route.ts` `GET`; `logs/[id]/route.ts` `PATCH`(can reassign `projectId` **and `milestoneId`**, re-snapshots names)/`DELETE`.
+- `projects/route.ts` `GET`/`POST`(create-by-name); `projects/[id]/route.ts` `PATCH`/`DELETE`(cascade).
+- `milestones/route.ts` `GET`(optional `?projectId=`)/`POST`(create); `milestones/[id]/route.ts` `PATCH`/`DELETE`.
+- `schedule/route.ts` `GET`/`PUT`; `settings/route.ts` `GET`/`PUT`; `backup/route.ts` `GET` export / `POST` import (normalizes projects/milestones/logs incl. the new fields).
+- Next 16: dynamic `params` is async — `await params`.
 
-**lib/:** `api.ts` (typed browser fetch wrappers — `startSession`(takes `projectId`), `pauseSession`, `extendSession`, `endSession`, `applyAway`, `startBreak`, `getProjects`, `createProject`, `putSchedule`, …), `useActiveSession.ts` (client hook: fetch + 1s tick + ~25s heartbeat + action callbacks), `schedule.ts` (pure resolution: `effectiveBlocks` [override → day-type template], `dayTypeForDate`, `defaultDayTypes`, `currentBlock`, `nextTransition`, `dayKeyForDate`; schedule **normalization + legacy `weekly`→`dayTypes`/`templates` migration lives in `store.ts`'s `normalizeSchedule`, run on every `getSchedule`**), `metrics.ts` (pure aggregations; **cancelled excluded** via `countedLogs`; `inferredBreakMsForDay` adds gap time; `timeByProject(logs, nameById, range)` groups focus by project — resolves the *current* name from `nameById`, falls back to the log's `projectName` snapshot, then "No project"), `format.ts`, `notify.ts`, `sound.ts` (Web Audio chime).
+**lib/:** `api.ts` (typed browser fetch wrappers — incl. `getMilestones/createMilestone/updateMilestone/deleteMilestone`, `updateProject/deleteProject`; `startSession` takes `projectId`+`milestoneId`), `useActiveSession.ts` (client hook: fetch + 1s tick + ~25s heartbeat + actions; `StartWorkInput` carries `milestoneId`), `projects.ts` (progress + ahead/behind, above), `schedule.ts` (`effectiveBlocks`, `dayTypeForDate`, …; normalization/migration lives in `store.ts`), `metrics.ts` (pure aggregations; **cancelled excluded** via `countedLogs`; `inferredBreakMsForDay`; `timeByProject`; **`timeByMilestone(logs,milestoneNameById,projectNameById,range,now)`**), `format.ts`, `notify.ts`, `sound.ts`.
 
-**PWA:** `public/manifest.webmanifest` + `public/sw.js` (registered by `components/SWRegister.tsx`). Hand-rolled, no build plugin.
+**Design system:** `app/globals.css` — dark, **blue-themed** (sky/azure `--accent: #0ea5e9`, blue-tinted slate neutrals, gradients, soft shadows, ambient top glow). Tokens exposed as Tailwind utilities (`bg`, `bg-2`, `surface`, `surface-2`, `surface-3`, `border`, `border-strong`, `text`, `muted`, `faint`, `accent`, `accent-hover`, `accent-strong`, `accent-2`, `accent-contrast`, `accent-soft`, `success`, `warning`, `danger`) + utility classes `.card`/`.card-hover`/`.btn-primary`(gradient CTA)/`.btn-secondary`/`.eyebrow`. **Shared primitives in `components/ui/`**: `Card`, `Badge`(tones), `ProgressBar`, `PageHeader`, `EmptyState`, `cn`. Reuse these for any new UI.
+
+**PWA:** `public/manifest.webmanifest` + `public/sw.js` (registered by `components/SWRegister.tsx`). `app/layout.tsx` offsets the desktop sidebar, the mobile bottom tab bar, **and the iOS top safe area (`env(safe-area-inset-top)`) on mobile** for the Dynamic Island; `viewportFit:"cover"`, `themeColor:"#070b14"`. Content sits in a `relative z-10` wrapper above the ambient glow.
 
 ## Conventions & gotchas
 
-- **Client state = plain `fetch` + React state, no SWR.** Timer ticks locally from timestamps; only semantic actions + heartbeat write to the store.
-- Objectives mutate **by `id`**, never index.
-- **Never block session start** on notification permission / audio unlock — fire-and-forget in the click gesture (`StartPanel.primeGesture`). Audio `unlock()` and `Notification.requestPermission()` must originate from a user gesture but must not be awaited.
-- Notifications fire **only while the app is open/active** (no push backend); iOS needs Home-Screen install.
-- Metrics/day-grouping bucket by **local** day; live-time rendering stays client-side (avoid hydration mismatches).
-- Next 16: Turbopack is default — **don't add a `webpack` key** to `next.config.ts`. There are advisory "serializable props"/`*Action` lint warnings on client function props — non-blocking, build is green; don't churn the codebase renaming callbacks.
+- **Client state = plain `fetch` (via `lib/api`) + React state, no SWR.** Never import `lib/store` on the client. Timer ticks locally from timestamps; only semantic actions + heartbeat write to the store.
+- Objectives/milestones mutate **by `id`**, never index.
+- **Never block session start** on notification permission / audio unlock — fire-and-forget in the click gesture (`StartPanel.primeGesture`). `unlock()` + `Notification.requestPermission()` must originate from a user gesture but must not be awaited.
+- Metrics/day-grouping bucket by **local** day; live-time rendering stays client-side (avoid hydration mismatch). `targetDate`/`startDate`/day keys compare lexicographically as `"YYYY-MM-DD"`.
+- Next 16: Turbopack is default — **don't add a `webpack` key**. There are advisory "serializable props"/`*Action` and `FormEvent`-deprecation lint warnings on client function props — **non-blocking, build is green; don't churn the codebase renaming callbacks**.
 - **Cancel keeps a `status:'cancelled'` log** (shown in History, excluded from metrics) — it is *not* discarded.
+- New UI should use the `components/ui/` primitives + design tokens (no raw hex), `PageHeader` at the top of pages, and must not add its own top safe-area padding (the layout handles it).
 
 ## Run / deploy
 
-`npm run dev` → http://localhost:3000 (works with the file store, zero setup). `npm run build` for prod. Deploy: push to GitHub → import in Vercel → add the **Upstash Redis** Marketplace integration (required) → Add to Home Screen on phone. Full steps in `README.md`; env in `.env.example`. (Optional `APP_PASSCODE` gate from the original plan is **not implemented**.)
+`npm run dev` → http://localhost:3000 (file store, zero setup). `npm run build` for prod (TS-checked; green). Deploy: push to GitHub → import in Vercel → add the **Upstash Redis** Marketplace integration (required) → Add to Home Screen on phone. Env in `.env.example`. (Optional `APP_PASSCODE` gate is **not implemented**.)

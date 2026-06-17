@@ -32,17 +32,22 @@ export default function ReloadPrompt({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center"
+      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-bg/70 p-4 backdrop-blur-md sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label="Welcome back"
     >
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-surface p-6 shadow-2xl">
-        <h2 className="mb-1 text-lg font-semibold">Welcome back</h2>
+      <div className="card animate-fade-up w-full max-w-sm p-6 shadow-card-lg">
+        <p className="eyebrow mb-1.5">Reconnected</p>
+        <h2 className="font-display mb-2 text-lg font-semibold tracking-tight text-text">
+          Welcome back
+        </h2>
         <p className="mb-5 text-sm text-muted">
           Your {label} was running and you were away for{" "}
-          <span className="font-semibold text-text">{msToHuman(awayMs)}</span>.
-          Should that time count as work?
+          <span className="readout font-semibold text-text">
+            {msToHuman(awayMs)}
+          </span>
+          . Should that time count as work?
         </p>
 
         <div className="flex flex-col gap-2">
@@ -50,7 +55,7 @@ export default function ReloadPrompt({
             type="button"
             disabled={busy}
             onClick={onCountAsWork}
-            className="w-full rounded-2xl bg-accent px-4 py-3 text-base font-semibold text-accent-contrast transition-colors hover:bg-accent-hover disabled:opacity-40"
+            className="btn-primary w-full px-4 py-3 text-base"
           >
             Count as work
           </button>
@@ -58,7 +63,7 @@ export default function ReloadPrompt({
             type="button"
             disabled={busy}
             onClick={onDontCount}
-            className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-base font-medium transition-colors hover:border-accent disabled:opacity-40"
+            className="btn-secondary w-full px-4 py-3 text-base"
           >
             Don&apos;t count it
           </button>
@@ -68,7 +73,7 @@ export default function ReloadPrompt({
               type="button"
               disabled={busy}
               onClick={onEnd}
-              className="rounded-2xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:text-text disabled:opacity-40"
+              className="btn-secondary px-4 py-2.5 text-sm"
             >
               End {label}
             </button>
@@ -76,7 +81,7 @@ export default function ReloadPrompt({
               type="button"
               disabled={busy}
               onClick={onCancel}
-              className="rounded-2xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:text-danger disabled:opacity-40"
+              className="btn-secondary px-4 py-2.5 text-sm text-muted hover:text-danger"
             >
               Cancel
             </button>

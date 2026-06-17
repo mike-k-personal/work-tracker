@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { LogEntry, LogStatus, Objective } from "@/lib/types";
-import { updateLog, deleteLog, getProjects } from "@/lib/store";
+import { updateLog, deleteLog, getProjects, getMilestones } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +81,23 @@ export async function PATCH(
           : "";
     } else {
       patch.projectName = "";
+    }
+  }
+
+  // Reassign the milestone (null clears it). Keep the denormalized title fresh.
+  if (b.milestoneId === null || typeof b.milestoneId === "string") {
+    const mid =
+      typeof b.milestoneId === "string" && b.milestoneId ? b.milestoneId : null;
+    patch.milestoneId = mid;
+    if (mid) {
+      const milestone = (await getMilestones()).find((m) => m.id === mid);
+      patch.milestoneName = milestone
+        ? milestone.title
+        : typeof b.milestoneName === "string"
+          ? b.milestoneName
+          : "";
+    } else {
+      patch.milestoneName = "";
     }
   }
 

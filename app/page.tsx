@@ -17,13 +17,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { Objective, Project, Schedule, Settings } from "@/lib/types";
+import type {
+  Milestone,
+  Objective,
+  Project,
+  Schedule,
+  Settings,
+} from "@/lib/types";
 import { effectiveBlocks } from "@/lib/schedule";
 import {
   getSchedule,
   getSettings,
   getProjects,
-  createProject,
+  getMilestones,
 } from "@/lib/api";
 import { useActiveSession } from "@/lib/useActiveSession";
 
@@ -61,25 +67,28 @@ export default function Home() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [awayBusy, setAwayBusy] = useState(false);
   const [breakPromptOpen, setBreakPromptOpen] = useState(false);
   const [breakBusy, setBreakBusy] = useState(false);
 
-  // Fetch settings + schedule + projects once. Failures fall back to sane
-  // defaults so the start panel and timeline still render.
+  // Fetch settings + schedule + projects + milestones once. Failures fall back
+  // to sane defaults so the start panel and timeline still render.
   useEffect(() => {
     let alive = true;
     void (async () => {
       try {
-        const [st, sc, pr] = await Promise.all([
+        const [st, sc, pr, ms] = await Promise.all([
           getSettings(),
           getSchedule(),
           getProjects(),
+          getMilestones(),
         ]);
         if (!alive) return;
         setSettings(st);
         setSchedule(sc);
         setProjects(pr);
+        setMilestones(ms);
       } catch {
         // keep defaults; timeline shows its empty state
       }
@@ -87,19 +96,6 @@ export default function Home() {
     return () => {
       alive = false;
     };
-  }, []);
-
-  // Create a project and add it to the local list so it appears in the picker.
-  const onCreateProject = useCallback(async (name: string) => {
-    try {
-      const p = await createProject(name);
-      setProjects((prev) =>
-        prev.some((x) => x.id === p.id) ? prev : [...prev, p],
-      );
-      return p;
-    } catch {
-      return null;
-    }
   }, []);
 
   // Tick "today" so the timeline window/now-line stay current across midnight.
@@ -165,10 +161,18 @@ export default function Home() {
   const onStartWork = useCallback(
     (input: {
       projectId: string | null;
+      milestoneId: string | null;
       taskName: string;
       objectives: Objective[];
       estimateMs: number;
-    }) => startWork(input),
+    }) =>
+      startWork({
+        projectId: input.projectId,
+        milestoneId: input.milestoneId,
+        taskName: input.taskName,
+        objectives: input.objectives,
+        estimateMs: input.estimateMs,
+      }),
     [startWork],
   );
 
@@ -177,16 +181,24 @@ export default function Home() {
     [startBreak],
   );
 
+  const todayLabel = new Date(now).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
   return (
     <div className="flex flex-1 flex-col p-4 sm:p-6">
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
+          <div className="relative h-10 w-10">
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-border border-t-accent shadow-[0_0_14px_var(--glow)]" />
+          </div>
         </div>
       ) : active ? (
         // ---------- ACTIVE: focus view + compact timeline ----------
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
-          <div className="flex-1 pt-6 lg:pt-10">
+          <div className="animate-fade-up flex-1 pt-2 lg:pt-8">
             <ActiveSession
               session={active}
               now={now}
@@ -201,31 +213,45 @@ export default function Home() {
               onWorkEnded={() => setBreakPromptOpen(true)}
             />
           </div>
-          <aside className="w-full shrink-0 lg:w-72">
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-              Today
-            </h2>
+          <aside
+            className="animate-fade-up w-full shrink-0 lg:w-72"
+            style={{ animationDelay: "90ms" }}
+          >
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <h2 className="eyebrow">Today</h2>
+              <span className="readout text-[0.6875rem] uppercase tracking-[0.12em] text-faint">
+                {todayLabel}
+              </span>
+            </div>
             <Timeline blocks={todayBlocks} now={now} pxPerMin={1.1} />
           </aside>
         </div>
       ) : (
         // ---------- IDLE: timeline + start panel ----------
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
-          <aside className="order-2 w-full shrink-0 lg:order-1 lg:w-72">
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-              Today
-            </h2>
+          <aside
+            className="animate-fade-up order-2 w-full shrink-0 lg:order-1 lg:w-72"
+            style={{ animationDelay: "90ms" }}
+          >
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <h2 className="eyebrow">Today</h2>
+              <span className="readout text-[0.6875rem] uppercase tracking-[0.12em] text-faint">
+                {todayLabel}
+              </span>
+            </div>
             <Timeline blocks={todayBlocks} now={now} />
           </aside>
-          <div className="order-1 flex flex-1 items-start justify-center pt-2 lg:order-2 lg:pt-10">
-            <StartPanel
-              projects={projects}
-              defaultWorkMin={settings.defaultWorkMin}
-              defaultBreakMin={settings.defaultBreakMin}
-              onStartWork={onStartWork}
-              onStartBreak={onStartBreakAdhoc}
-              onCreateProject={onCreateProject}
-            />
+          <div className="order-1 flex flex-1 items-start justify-center pt-2 lg:order-2 lg:pt-8">
+            <div className="animate-fade-up w-full">
+              <StartPanel
+                projects={projects}
+                milestones={milestones}
+                defaultWorkMin={settings.defaultWorkMin}
+                defaultBreakMin={settings.defaultBreakMin}
+                onStartWork={onStartWork}
+                onStartBreak={onStartBreakAdhoc}
+              />
+            </div>
           </div>
         </div>
       )}

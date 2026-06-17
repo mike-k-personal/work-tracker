@@ -1,17 +1,31 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Hanken_Grotesk,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import SWRegister from "@/components/SWRegister";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// "Precision instrument" type system: a characterful display grotesque, a
+// refined body grotesque, and a technical mono for all numerics / timers.
+const display = Bricolage_Grotesque({
+  variable: "--font-display-src",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sans = Hanken_Grotesk({
+  variable: "--font-sans-src",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  variable: "--font-mono-src",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -39,7 +53,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#060910",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -55,14 +69,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-bg text-text">
         <SWRegister />
         <Nav />
-        {/* Offset for the desktop sidebar (md+) and the mobile bottom tab bar. */}
-        <div className="flex min-h-dvh flex-col md:pl-60">
-          <main className="flex flex-1 flex-col pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
+        {/* Offset for: the desktop sidebar (md+), the mobile bottom tab bar, and
+            the iOS safe area at top (Dynamic Island / status bar) on mobile.
+            `relative z-10` keeps content above the ambient background glow. */}
+        <div className="relative z-10 flex min-h-dvh flex-col md:pl-60">
+          <main className="flex flex-1 flex-col pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pt-0 md:pb-0">
             {children}
           </main>
         </div>

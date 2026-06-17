@@ -1,12 +1,13 @@
 "use client";
 
 // components/ObjectiveList.tsx
-// A fully-editable checklist of Objectives, controlled by the parent via
-// `objectives` + `onChange`. Reused in two places:
-//   - StartPanel (pre-start): edits a local draft list.
+// A fully-editable checklist of Tasks (the session's sub-objectives), controlled
+// by the parent via `objectives` + `onChange`. Reused in two places:
+//   - StartPanel (pre-start): edits a local draft list of tasks.
 //   - ActiveSession (mid-session): each change is persisted via setObjectives.
 // It is intentionally presentational/controlled — it never fetches. Operations
-// are keyed by objective id (add / rename / toggle / remove).
+// are keyed by objective id (add / rename / toggle / remove). UI copy says
+// "task(s)"; the underlying data type is still Objective.
 
 import { useState } from "react";
 import type { Objective } from "@/lib/types";
@@ -61,29 +62,30 @@ export default function ObjectiveList({
   return (
     <div className={className}>
       {showProgress && total > 0 && (
-        <p className="mb-2 text-xs font-medium text-muted">
+        <p className="readout mb-2 text-xs font-medium text-muted">
           {done} of {total} done
         </p>
       )}
 
       {total > 0 && (
         <ul className="flex flex-col gap-1.5">
-          {objectives.map((o) => (
+          {objectives.map((o, i) => (
             <li
               key={o.id}
-              className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2"
+              className="animate-fade-up flex items-center gap-2 rounded-xl border border-border bg-surface-2/70 px-3 py-2 transition-colors focus-within:border-accent/60 hover:border-border-strong"
+              style={{ animationDelay: `${i * 40}ms` }}
             >
               <button
                 type="button"
                 role="checkbox"
                 aria-checked={o.done}
-                aria-label={o.done ? "Mark not done" : "Mark done"}
+                aria-label={o.done ? "Mark task not done" : "Mark task done"}
                 disabled={disabled}
                 onClick={() => toggle(o.id)}
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors disabled:opacity-50 ${
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-all disabled:opacity-50 ${
                   o.done
-                    ? "border-accent bg-accent text-accent-contrast"
-                    : "border-border bg-bg"
+                    ? "border-accent bg-accent text-accent-contrast shadow-[0_0_10px_-2px_var(--glow)]"
+                    : "border-border-strong bg-bg hover:border-accent"
                 }`}
               >
                 {o.done && (
@@ -109,7 +111,7 @@ export default function ObjectiveList({
                 value={o.text}
                 disabled={disabled}
                 onChange={(e) => rename(o.id, e.target.value)}
-                aria-label="Objective"
+                aria-label="Task"
                 className={`min-w-0 flex-1 bg-transparent text-sm outline-none disabled:opacity-50 ${
                   o.done ? "text-muted line-through" : "text-text"
                 }`}
@@ -117,10 +119,10 @@ export default function ObjectiveList({
 
               <button
                 type="button"
-                aria-label="Remove objective"
+                aria-label="Remove task"
                 disabled={disabled}
                 onClick={() => remove(o.id)}
-                className="shrink-0 rounded-md p-1 text-muted transition-colors hover:text-danger disabled:opacity-50"
+                className="shrink-0 rounded-md p-1 text-faint transition-colors hover:text-danger disabled:opacity-50"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -142,12 +144,13 @@ export default function ObjectiveList({
         </ul>
       )}
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className={`flex items-center gap-2 ${total > 0 ? "mt-2" : ""}`}>
         <input
           type="text"
           value={draft}
           disabled={disabled}
-          placeholder="Add an objective…"
+          placeholder="Add a task…"
+          aria-label="Add a task"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -155,7 +158,7 @@ export default function ObjectiveList({
               add();
             }
           }}
-          className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-xl border border-border px-3 py-2 text-sm outline-none transition-colors focus:border-accent disabled:opacity-50"
         />
         <button
           type="button"

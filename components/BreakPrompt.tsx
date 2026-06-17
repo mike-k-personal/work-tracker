@@ -29,20 +29,20 @@ export default function BreakPrompt({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center"
+      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-bg/70 p-4 backdrop-blur-md sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label="Take a break"
     >
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-surface p-6 shadow-2xl">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-success/15 text-success">
+      <div className="card animate-fade-up w-full max-w-sm p-6 shadow-card-lg">
+        <div className="mb-3 flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15 text-success shadow-[0_0_16px_-4px_rgb(74_222_128_/_0.5)]">
             <svg
               viewBox="0 0 24 24"
               className="h-5 w-5"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.8"
               aria-hidden="true"
             >
               <path
@@ -52,14 +52,19 @@ export default function BreakPrompt({
               />
             </svg>
           </span>
-          <h2 className="text-lg font-semibold">Nice work — take a break?</h2>
+          <div>
+            <p className="eyebrow text-success">Pomodoro</p>
+            <h2 className="font-display text-lg font-semibold tracking-tight">
+              Nice work — take a break?
+            </h2>
+          </div>
         </div>
         <p className="mb-5 text-sm text-muted">
           A short break keeps you sharp. Adjust the length or skip it.
         </p>
 
         <label className="mb-5 flex items-center justify-between gap-3">
-          <span className="text-sm text-muted">Break length</span>
+          <span className="eyebrow text-muted">Break length</span>
           <span className="flex items-center gap-2">
             <input
               type="number"
@@ -68,10 +73,12 @@ export default function BreakPrompt({
               value={minutes}
               disabled={busy}
               onChange={(e) => setMinutes(e.target.value)}
-              className="w-20 rounded-xl px-3 py-2 text-right text-base tabular-nums outline-none focus:border-accent"
+              className="readout w-20 rounded-xl border border-border bg-surface-2 px-3 py-2 text-right text-base outline-none transition-colors focus:border-accent"
               aria-label="Break length in minutes"
             />
-            <span className="text-sm text-muted">min</span>
+            <span className="readout text-xs uppercase tracking-wider text-faint">
+              min
+            </span>
           </span>
         </label>
 
@@ -80,7 +87,7 @@ export default function BreakPrompt({
             type="button"
             disabled={busy || !valid}
             onClick={() => valid && onStartBreak(parsed * 60_000)}
-            className="w-full rounded-2xl bg-success px-4 py-3 text-base font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="w-full rounded-xl bg-success px-4 py-3 text-base font-semibold text-bg shadow-[0_6px_20px_-8px_rgb(74_222_128_/_0.6)] transition-opacity hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
           >
             Start break
           </button>
@@ -88,7 +95,7 @@ export default function BreakPrompt({
             type="button"
             disabled={busy}
             onClick={onSkip}
-            className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-base font-medium text-muted transition-colors hover:text-text disabled:opacity-40"
+            className="btn-secondary w-full px-4 py-3 text-base"
           >
             Skip
           </button>

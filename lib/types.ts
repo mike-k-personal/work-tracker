@@ -22,15 +22,39 @@ export type Objective = {
 };
 
 /**
- * A project: the top-level grouping for work sessions, so focus time can be
- * rolled up per project. Sessions reference a project by id; logs also snapshot
- * the name so history survives a rename/removal.
+ * A project: the top-level unit of work. A project is planned out as an ordered
+ * set of milestones (objectives) and is "done" once every milestone is done.
+ * Work sessions reference a project by id; logs also snapshot the name so
+ * history survives a rename/removal.
  */
 export type Project = {
   id: string;
   name: string;
   createdAt: number; // epoch ms
   archived?: boolean; // hidden from the picker, kept for historical metrics
+  description?: string; // optional short blurb shown on the project
+  /** Planned start day, local "YYYY-MM-DD"; used to pace ahead/behind schedule. */
+  startDate?: string | null;
+  /** Manual completion: when set, the project is done regardless of milestones. */
+  completedAt?: number | null;
+};
+
+/**
+ * A milestone (a.k.a. objective): a planned, dated checkpoint inside a project.
+ * Completing the tasks in work sessions moves a milestone toward `done`, and
+ * completing every milestone completes the project. `targetDate` is the day you
+ * planned to finish it by and drives the ahead/behind-schedule indicator.
+ */
+export type Milestone = {
+  id: string;
+  projectId: string;
+  title: string;
+  done: boolean;
+  doneAt: number | null; // epoch ms when marked done; null while open
+  /** Planned completion day, local "YYYY-MM-DD"; null when undated. */
+  targetDate: string | null;
+  order: number; // manual ordering within the project
+  createdAt: number; // epoch ms
 };
 
 export type SessionKind = "work" | "break";
@@ -46,8 +70,10 @@ export type ActiveSession = {
   kind: SessionKind;
   projectId: string | null; // work only; null for breaks / unassigned
   projectName: string; // denormalized snapshot; "" for breaks / unassigned
+  milestoneId: string | null; // milestone this session moves forward; null when none
+  milestoneName: string; // denormalized snapshot; "" when none
   taskName: string; // the session's "main objective" free-text name ("Break" for breaks)
-  objectives: Objective[]; // sub-objectives, work only (empty for breaks)
+  objectives: Objective[]; // tasks completed this session, work only (empty for breaks)
   status: SessionStatus;
   startedAt: number; // wall-clock start (epoch ms)
   accumulatedActiveMs: number; // frozen active ms from finished segments
@@ -71,6 +97,8 @@ export type LogEntry = {
   kind: SessionKind;
   projectId: string | null; // work only; null for breaks / unassigned
   projectName: string; // denormalized snapshot for display & per-project metrics
+  milestoneId: string | null; // milestone worked on; null when none
+  milestoneName: string; // denormalized snapshot for display & per-milestone metrics
   taskName: string; // the session's "main objective" free-text name
   objectives: Objective[];
   status: LogStatus;
@@ -118,6 +146,7 @@ export type Doc = {
   active: ActiveSession | null;
   logs: LogEntry[];
   projects: Project[];
+  milestones: Milestone[];
   schedule: Schedule;
   settings: Settings;
 };
@@ -130,6 +159,7 @@ export const STORE_KEYS = {
   active: "wt:active",
   logs: "wt:logs",
   projects: "wt:projects",
+  milestones: "wt:milestones",
   schedule: "wt:schedule",
   settings: "wt:settings",
 } as const;

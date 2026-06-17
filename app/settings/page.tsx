@@ -1,13 +1,16 @@
 "use client";
 
 // app/settings/page.tsx
-// Settings + Backup. Lets the user edit Pomodoro defaults and the
-// notification/sound toggles, verify notifications + chime on their actual
-// device, and export/import all data as JSON. Talks to the server only through
-// the typed client wrappers in @/lib/api; uses the client-only notify/sound
-// helpers directly for the test buttons.
+// Settings + Backup, plus the entry point to the Daily schedule (schedule was
+// folded out of the primary nav and now lives here). Lets the user open the
+// schedule editor, edit Pomodoro defaults and the notification/sound toggles,
+// verify notifications + chime on their actual device, and export/import all
+// data as JSON. Talks to the server only through the typed client wrappers in
+// @/lib/api; uses the client-only notify/sound helpers directly for the test
+// buttons. Restyled onto the blue-dark design system + shared UI primitives.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ApiError,
   exportData,
@@ -22,6 +25,9 @@ import {
 } from "@/lib/notify";
 import { playChime, soundSupported, unlock } from "@/lib/sound";
 import type { Settings } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Badge } from "@/components/ui/Badge";
 
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 600;
@@ -222,42 +228,82 @@ export default function SettingsPage() {
     [showToast],
   );
 
-  const permLabel = (() => {
-    const p = notificationPermission();
-    if (p === "unsupported") return "Not supported on this device";
-    if (p === "granted") return "Allowed";
-    if (p === "denied") return "Blocked";
-    return "Not yet requested";
-  })();
+  const perm = notificationPermission();
+  const permBadge: { tone: "success" | "danger" | "muted"; label: string } =
+    perm === "granted"
+      ? { tone: "success", label: "Allowed" }
+      : perm === "denied"
+        ? { tone: "danger", label: "Blocked" }
+        : perm === "unsupported"
+          ? { tone: "muted", label: "Not supported" }
+          : { tone: "muted", label: "Not requested" };
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted">
-          Pomodoro defaults, notifications, and your data.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+      <PageHeader
+        eyebrow="Control panel"
+        title="Settings"
+        subtitle="Your daily schedule, Pomodoro defaults, alerts, and data — all in one place."
+      />
 
       {loadError ? (
-        <div className="rounded-2xl border border-danger/40 bg-surface p-4 text-sm text-danger">
+        <Card className="border-danger/40 p-4 text-sm text-danger">
           {loadError}
-        </div>
+        </Card>
       ) : !settings ? (
-        <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-          Loading…
-        </div>
+        <Card className="flex items-center gap-2 p-4 text-sm text-muted">
+          <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-accent" />
+          <span className="font-mono text-xs uppercase tracking-wider">
+            Loading…
+          </span>
+        </Card>
       ) : (
         <div className="flex flex-col gap-8">
+          {/* Daily schedule entry point — prominent link-Card (schedule isn't
+              in the primary nav). */}
+          <section aria-labelledby="schedule-heading" className="animate-fade-up">
+            <SectionLabel id="schedule-heading">Planning</SectionLabel>
+            <Link href="/schedule" className="group block">
+              <Card
+                interactive
+                className="flex items-center gap-4 overflow-hidden p-4 transition-transform active:scale-[0.99]"
+              >
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-accent/25 bg-accent-soft text-accent-hover shadow-[0_0_18px_-6px_var(--glow)]">
+                  <svg {...iconProps} aria-hidden="true">
+                    <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+                    <path d="M3 9h18M8 2.5v4M16 2.5v4" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display text-base font-semibold tracking-tight text-text">
+                      Daily schedule
+                    </span>
+                    <span className="eyebrow text-[0.625rem]">Guide</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    Set your weekly work / off days and time blocks
+                  </div>
+                </div>
+                <svg
+                  {...iconProps}
+                  className="shrink-0 text-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-accent"
+                  aria-hidden="true"
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </Card>
+            </Link>
+          </section>
+
           {/* Pomodoro defaults */}
-          <section aria-labelledby="defaults-heading">
-            <h2
-              id="defaults-heading"
-              className="mb-3 text-sm font-semibold tracking-tight text-muted"
-            >
-              Pomodoro defaults
-            </h2>
-            <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <section
+            aria-labelledby="defaults-heading"
+            className="animate-fade-up"
+            style={{ animationDelay: "60ms" }}
+          >
+            <SectionLabel id="defaults-heading">Pomodoro defaults</SectionLabel>
+            <Card className="overflow-hidden p-0">
               <MinuteRow
                 label="Work session"
                 hint="Pre-fills the duration when you start a work session."
@@ -287,21 +333,21 @@ export default function SettingsPage() {
                   )
                 }
               />
-            </div>
+            </Card>
           </section>
 
           {/* Notifications + sound */}
-          <section aria-labelledby="alerts-heading">
-            <h2
-              id="alerts-heading"
-              className="mb-3 text-sm font-semibold tracking-tight text-muted"
-            >
-              Alerts
-            </h2>
-            <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <section
+            aria-labelledby="alerts-heading"
+            className="animate-fade-up"
+            style={{ animationDelay: "120ms" }}
+          >
+            <SectionLabel id="alerts-heading">Alerts</SectionLabel>
+            <Card className="overflow-hidden p-0">
               <ToggleRow
                 label="Notifications"
-                hint={`Browser notifications when a timer ends or a block changes. Permission: ${permLabel}.`}
+                hint="Browser notifications when a timer ends or a block changes."
+                badge={<Badge tone={permBadge.tone}>{permBadge.label}</Badge>}
                 checked={settings.notificationsEnabled}
                 busy={savingField === "notificationsEnabled"}
                 onToggle={() => toggle("notificationsEnabled")}
@@ -319,20 +365,28 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleTestNotification}
-                  className="flex-1 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium text-text transition-colors hover:border-accent hover:text-accent active:scale-[0.99]"
+                  className="btn-secondary h-11 flex-1 px-4 text-sm"
                 >
+                  <svg {...iconProps} width={16} height={16} aria-hidden="true">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                  </svg>
                   Test notification
                 </button>
                 <button
                   type="button"
                   onClick={handleTestChime}
-                  className="flex-1 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium text-text transition-colors hover:border-accent hover:text-accent active:scale-[0.99]"
+                  className="btn-secondary h-11 flex-1 px-4 text-sm"
                 >
+                  <svg {...iconProps} width={16} height={16} aria-hidden="true">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" />
+                  </svg>
                   Test chime
                 </button>
               </div>
-            </div>
-            <p className="mt-2 px-1 text-xs text-muted">
+            </Card>
+            <p className="mt-2 px-1 text-xs text-faint">
               Use the test buttons to confirm alerts work on this device — iOS
               requires the app to be installed to the Home Screen for
               notifications.
@@ -340,16 +394,17 @@ export default function SettingsPage() {
           </section>
 
           {/* Backup */}
-          <section aria-labelledby="backup-heading">
-            <h2
-              id="backup-heading"
-              className="mb-3 text-sm font-semibold tracking-tight text-muted"
-            >
-              Backup
-            </h2>
-            <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <section
+            aria-labelledby="backup-heading"
+            className="animate-fade-up"
+            style={{ animationDelay: "180ms" }}
+          >
+            <SectionLabel id="backup-heading">Backup</SectionLabel>
+            <Card className="overflow-hidden p-0">
               <div className="flex flex-col gap-1 p-4">
-                <span className="text-sm font-medium">Export data</span>
+                <span className="text-sm font-medium text-text">
+                  Export data
+                </span>
                 <span className="text-xs text-muted">
                   Download everything (history, schedule, settings) as a JSON
                   file.
@@ -357,14 +412,20 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleExport}
-                  className="mt-3 self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-hover active:scale-[0.99]"
+                  className="btn-primary mt-3 h-11 self-start px-4 text-sm"
                 >
+                  <svg {...iconProps} width={16} height={16} aria-hidden="true">
+                    <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                    <path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+                  </svg>
                   Export JSON
                 </button>
               </div>
               <div className="h-px bg-border" />
               <div className="flex flex-col gap-1 p-4">
-                <span className="text-sm font-medium">Import data</span>
+                <span className="text-sm font-medium text-text">
+                  Import data
+                </span>
                 <span className="text-xs text-muted">
                   Restore from a backup file. This overwrites all current data.
                 </span>
@@ -372,8 +433,12 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleImportPick}
                   disabled={importing}
-                  className="mt-3 self-start rounded-xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:border-accent hover:text-accent active:scale-[0.99] disabled:opacity-50"
+                  className="btn-secondary mt-3 h-11 self-start px-4 text-sm font-semibold disabled:opacity-50"
                 >
+                  <svg {...iconProps} width={16} height={16} aria-hidden="true">
+                    <path d="M12 15V3m0 0 4 4m-4-4-4 4" />
+                    <path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+                  </svg>
                   {importing ? "Importing…" : "Import JSON"}
                 </button>
                 <input
@@ -384,26 +449,25 @@ export default function SettingsPage() {
                   className="hidden"
                 />
               </div>
-            </div>
+            </Card>
           </section>
 
           {/* About / sync + passcode note */}
-          <section aria-labelledby="about-heading">
-            <h2
-              id="about-heading"
-              className="mb-3 text-sm font-semibold tracking-tight text-muted"
-            >
-              About
-            </h2>
-            <div className="rounded-2xl border border-border bg-surface p-4 text-xs leading-relaxed text-muted">
+          <section
+            aria-labelledby="about-heading"
+            className="animate-fade-up"
+            style={{ animationDelay: "240ms" }}
+          >
+            <SectionLabel id="about-heading">About</SectionLabel>
+            <Card className="p-4 text-xs leading-relaxed text-muted">
               <p>
                 Data syncs across your phone and Mac only when an Upstash Redis
                 store is configured (the{" "}
-                <code className="rounded bg-surface-2 px-1 py-0.5 text-[11px] text-text">
+                <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-accent-hover">
                   UPSTASH_REDIS_REST_URL
                 </code>{" "}
                 /{" "}
-                <code className="rounded bg-surface-2 px-1 py-0.5 text-[11px] text-text">
+                <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-accent-hover">
                   KV_REST_API_URL
                 </code>{" "}
                 env vars). Without it, data is stored locally on this server
@@ -412,14 +476,14 @@ export default function SettingsPage() {
               <p className="mt-3">
                 You can optionally protect the app with a passphrase by setting
                 an{" "}
-                <code className="rounded bg-surface-2 px-1 py-0.5 text-[11px] text-text">
+                <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-accent-hover">
                   APP_PASSCODE
                 </code>{" "}
                 environment variable on the server. It&rsquo;s off by default;
                 when set, API routes require the passphrase before reading or
                 writing data.
               </p>
-            </div>
+            </Card>
           </section>
         </div>
       )}
@@ -429,12 +493,18 @@ export default function SettingsPage() {
         <div
           role="status"
           aria-live="polite"
-          className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-50 mx-auto w-fit max-w-[90vw] rounded-xl border px-4 py-2.5 text-sm shadow-lg md:bottom-6 md:left-60 ${
+          className={`animate-fade-up fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-50 mx-auto flex w-fit max-w-[90vw] items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm md:bottom-6 md:left-60 ${
             toast.kind === "ok"
-              ? "border-success/40 bg-surface text-success"
-              : "border-danger/40 bg-surface text-danger"
+              ? "border-success/40 bg-surface/95 text-success shadow-[0_8px_28px_-10px_rgb(74_222_128/0.4)]"
+              : "border-danger/40 bg-surface/95 text-danger shadow-[0_8px_28px_-10px_rgb(251_113_133/0.4)]"
           }`}
         >
+          <span
+            aria-hidden="true"
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+              toast.kind === "ok" ? "bg-success" : "bg-danger"
+            }`}
+          />
           {toast.text}
         </div>
       ) : null}
@@ -443,8 +513,37 @@ export default function SettingsPage() {
 }
 
 // ---------------------------------------------------------------------------
+// Shared icon props for inline SVGs (matches the Nav style).
+// ---------------------------------------------------------------------------
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+// ---------------------------------------------------------------------------
 // Row sub-components (kept local; presentational only).
 // ---------------------------------------------------------------------------
+
+function SectionLabel({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <h2 id={id} className="eyebrow mb-3 px-1">
+      {children}
+    </h2>
+  );
+}
 
 function MinuteRow({
   label,
@@ -466,7 +565,7 @@ function MinuteRow({
   return (
     <div className="flex items-center justify-between gap-4 p-4">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
+        <div className="text-sm font-medium text-text">{label}</div>
         <div className="mt-0.5 text-xs text-muted">{hint}</div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -474,11 +573,11 @@ function MinuteRow({
           type="button"
           aria-label={`Decrease ${label}`}
           onClick={() => onStep(-5)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-2 text-lg leading-none text-text transition-colors hover:border-accent hover:text-accent active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-2 text-lg leading-none text-muted transition-colors hover:border-accent hover:text-accent active:scale-95"
         >
           −
         </button>
-        <div className="relative">
+        <div className="relative flex items-baseline gap-1 rounded-xl border border-border bg-surface-2 px-2 transition-colors focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
           <input
             type="number"
             inputMode="numeric"
@@ -492,18 +591,22 @@ function MinuteRow({
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="h-10 w-16 rounded-xl border border-border bg-surface-2 text-center text-base font-semibold tabular-nums text-text outline-none focus:border-accent disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className={`readout h-10 w-10 border-0 bg-transparent text-center text-base font-semibold text-text outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+              busy ? "animate-pulse-glow" : ""
+            }`}
           />
+          <span className="font-mono text-[0.625rem] uppercase tracking-wider text-faint">
+            min
+          </span>
         </div>
         <button
           type="button"
           aria-label={`Increase ${label}`}
           onClick={() => onStep(5)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-2 text-lg leading-none text-text transition-colors hover:border-accent hover:text-accent active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-2 text-lg leading-none text-muted transition-colors hover:border-accent hover:text-accent active:scale-95"
         >
           +
         </button>
-        <span className="ml-1 w-8 text-xs text-muted">min</span>
       </div>
     </div>
   );
@@ -512,12 +615,14 @@ function MinuteRow({
 function ToggleRow({
   label,
   hint,
+  badge,
   checked,
   busy,
   onToggle,
 }: {
   label: string;
   hint: string;
+  badge?: React.ReactNode;
   checked: boolean;
   busy: boolean;
   onToggle: () => void;
@@ -525,7 +630,10 @@ function ToggleRow({
   return (
     <div className="flex items-center justify-between gap-4 p-4">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-text">{label}</span>
+          {badge}
+        </div>
         <div className="mt-0.5 text-xs text-muted">{hint}</div>
       </div>
       <button
@@ -535,15 +643,17 @@ function ToggleRow({
         aria-label={label}
         disabled={busy}
         onClick={onToggle}
-        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-all duration-200 active:scale-95 disabled:opacity-50 ${
           checked
-            ? "border-accent bg-accent"
+            ? "border-accent bg-accent shadow-[0_0_14px_-2px_var(--glow)]"
             : "border-border bg-surface-2"
         }`}
       >
         <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-6" : "translate-x-1"
+          className={`inline-block h-5 w-5 transform rounded-full shadow transition-transform duration-200 ${
+            checked
+              ? "translate-x-6 bg-accent-contrast"
+              : "translate-x-1 bg-faint"
           }`}
         />
       </button>

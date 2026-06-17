@@ -25,6 +25,7 @@ export const AWAY_THRESHOLD_MS = 20_000;
 
 export type StartWorkInput = {
   projectId?: string | null;
+  milestoneId?: string | null;
   taskName: string;
   objectives?: Objective[];
   estimateMs: number;
@@ -209,6 +210,7 @@ export function useActiveSession(): UseActiveSession {
         const s = await api.startSession({
           kind: "work",
           projectId: input.projectId ?? null,
+          milestoneId: input.milestoneId ?? null,
           taskName: input.taskName,
           objectives: input.objectives,
           estimateMs: input.estimateMs,

@@ -354,6 +354,58 @@ export function timeByProject(
   return [...map.values()].sort((a, b) => b.focusMs - a.focusMs);
 }
 
+export type MilestoneTime = {
+  milestoneId: string | null; // null bucket = work with no milestone
+  projectId: string | null;
+  name: string;
+  projectName: string;
+  focusMs: number;
+  sessionCount: number;
+};
+
+/**
+ * Focus time grouped by milestone over counted work sessions in a range. Work
+ * with no milestone falls into the `milestoneId: null` bucket ("No milestone").
+ *
+ * `nameById` resolves the CURRENT milestone title for an id (so renames show);
+ * it falls back to the log's denormalized `milestoneName` snapshot. The project
+ * label resolves the same way via `projectNameById`. Sorted by focus desc.
+ */
+export function timeByMilestone(
+  logs: LogEntry[],
+  nameById: Map<string, string>,
+  projectNameById: Map<string, string>,
+  range: Range = "all",
+  now: number = Date.now(),
+): MilestoneTime[] {
+  const map = new Map<string, MilestoneTime>();
+  for (const l of logsInRange(countedLogs(logs), range, now)) {
+    if (!isWork(l)) continue;
+    const key = l.milestoneId ?? "__none__";
+    let entry = map.get(key);
+    if (!entry) {
+      const name = l.milestoneId
+        ? (nameById.get(l.milestoneId) ?? l.milestoneName ?? "Unknown milestone")
+        : "No milestone";
+      const projectName = l.projectId
+        ? (projectNameById.get(l.projectId) ?? l.projectName ?? "")
+        : "";
+      entry = {
+        milestoneId: l.milestoneId,
+        projectId: l.projectId,
+        name,
+        projectName,
+        focusMs: 0,
+        sessionCount: 0,
+      };
+      map.set(key, entry);
+    }
+    entry.focusMs += Math.max(0, l.activeMs);
+    entry.sessionCount += 1;
+  }
+  return [...map.values()].sort((a, b) => b.focusMs - a.focusMs);
+}
+
 // ----------------------------------------------------------------------------
 // Inferred break time (explicit logged breaks + unlogged gaps in work windows)
 // ----------------------------------------------------------------------------

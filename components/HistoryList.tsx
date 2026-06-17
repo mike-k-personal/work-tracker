@@ -1,21 +1,21 @@
 "use client";
 
 // components/HistoryList.tsx
-// PRESENTATIONAL day-grouped history list. Given a flat list of LogEntry, it
-// groups by LOCAL day (newest first), renders a per-day section header with a
-// daily focus total, and one tappable row per entry (work or break). Each row
-// shows task/label, time range, active duration, objectives done/total, and a
-// status badge. No data fetching — the page passes `logs` and handles loading.
+// PRESENTATIONAL day-grouped history list, rendered as a precision INSTRUMENT
+// LOG / ledger. Given a flat list of LogEntry, it groups by LOCAL day (newest
+// first), renders a per-day header as a mono date readout with a hairline rule +
+// a daily focus total, and one tappable ledger row per entry (work or break).
+// Each row shows task/label, project + milestone Badges, a mono time range,
+// mono active duration, tasks done/total, and a cancelled state. No data
+// fetching — the page passes `logs` and handles loading.
 
 import Link from "next/link";
 
 import type { LogEntry } from "@/lib/types";
-import {
-  dayKey,
-  msToHuman,
-  prettyDay,
-  prettyTime,
-} from "@/lib/format";
+import { dayKey, msToHuman, prettyTime } from "@/lib/format";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type DayGroup = {
   key: string;
@@ -53,73 +53,135 @@ function groupByDay(logs: LogEntry[]): DayGroup[] {
   return groups;
 }
 
-function StatusBadge({ status }: { status: LogEntry["status"] }) {
-  const completed = status === "completed";
-  return (
-    <span
-      className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-        completed
-          ? "bg-success/15 text-success"
-          : "bg-danger/15 text-danger"
-      }`}
-    >
-      {completed ? "Completed" : "Cancelled"}
-    </span>
-  );
+/** Mono instrument date label, e.g. "MON · JUN 16". Uppercased for the readout. */
+function monoDateLabel(epoch: number): string {
+  const d = new Date(epoch);
+  const wd = d.toLocaleDateString(undefined, { weekday: "short" });
+  const md = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${wd} · ${md}`.toUpperCase();
+}
+
+/** "MON JUN 16" spoken-friendly aria label for the day section. */
+function dayAria(epoch: number): string {
+  return new Date(epoch).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 function EntryRow({ entry }: { entry: LogEntry }) {
   const isWork = entry.kind === "work";
   const cancelled = entry.status === "cancelled";
 
+  // Status indicator: accent = work, success = break, danger = cancelled.
+  const dotTone = cancelled
+    ? "bg-danger shadow-[0_0_8px_var(--glow)]"
+    : isWork
+      ? "bg-accent shadow-[0_0_8px_var(--glow)]"
+      : "bg-success";
+
   return (
     <Link
       href={`/history/${encodeURIComponent(entry.id)}`}
-      className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3 transition-colors hover:border-accent/50 hover:bg-surface-2 active:bg-surface-2"
+      className="group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
     >
-      <span
-        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-          isWork ? "bg-accent" : "bg-success"
-        }`}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+      <Card
+        interactive
+        className="flex items-stretch gap-0 overflow-hidden p-0"
+      >
+        {/* Left rail: status dot + a hairline accent spine on the work tone. */}
+        <span
+          className="flex w-9 shrink-0 items-center justify-center self-stretch border-r border-border/70 bg-bg-2/40"
+          aria-hidden="true"
+        >
           <span
-            className={`truncate text-sm font-medium ${
-              cancelled ? "text-muted line-through" : "text-text"
+            className={`h-2 w-2 rounded-full ${dotTone} ${
+              cancelled ? "opacity-80" : ""
             }`}
+          />
+        </span>
+
+        <div className="min-w-0 flex-1 px-4 py-3.5">
+          <div className="flex items-start gap-2">
+            <span
+              className={`min-w-0 flex-1 truncate text-sm font-medium leading-snug ${
+                cancelled ? "text-faint line-through" : "text-text"
+              }`}
+            >
+              {entry.taskName || (isWork ? "Untitled session" : "Break")}
+            </span>
+            {/* Mono active duration — the headline readout for each row. */}
+            <span
+              className={`readout shrink-0 text-sm tabular-nums ${
+                cancelled ? "text-faint line-through" : "text-text"
+              }`}
+            >
+              {msToHuman(entry.activeMs)}
+            </span>
+          </div>
+
+          {/* Project + milestone tags (work) or a Break chip. */}
+          {isWork && (entry.projectName || entry.milestoneName) ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {entry.projectName && (
+                <Badge tone="accent" className="max-w-full truncate">
+                  {entry.projectName}
+                </Badge>
+              )}
+              {entry.milestoneName && (
+                <Badge tone="muted" className="max-w-full truncate">
+                  {entry.milestoneName}
+                </Badge>
+              )}
+              {cancelled && <Badge tone="danger">Cancelled</Badge>}
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {isWork ? (
+                <Badge tone="muted">Unassigned</Badge>
+              ) : (
+                <Badge tone="success">Break</Badge>
+              )}
+              {cancelled && <Badge tone="danger">Cancelled</Badge>}
+            </div>
+          )}
+
+          {/* Mono instrument readout strip: time range · tasks. */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.6875rem] tracking-tight text-faint tabular-nums">
+            <span className="text-muted">
+              {prettyTime(entry.startedAt)} – {prettyTime(entry.endedAt)}
+            </span>
+            {isWork && entry.objectivesTotal > 0 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {entry.objectivesCompleted}/{entry.objectivesTotal} tasks
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Chevron affordance. */}
+        <span
+          className="flex w-8 shrink-0 items-center justify-center self-center pr-1 text-faint transition-colors group-hover:text-accent"
+          aria-hidden="true"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           >
-            {entry.taskName || (isWork ? "Untitled session" : "Break")}
-          </span>
-          {isWork && entry.projectName && (
-            <span className="shrink-0 rounded-md bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
-              {entry.projectName}
-            </span>
-          )}
-          {!isWork && (
-            <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">
-              Break
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted tabular-nums">
-          <span>
-            {prettyTime(entry.startedAt)} – {prettyTime(entry.endedAt)}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{msToHuman(entry.activeMs)}</span>
-          {isWork && entry.objectivesTotal > 0 && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>
-                {entry.objectivesCompleted}/{entry.objectivesTotal} done
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-      <StatusBadge status={entry.status} />
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </span>
+      </Card>
     </Link>
   );
 }
@@ -129,30 +191,55 @@ export default function HistoryList({ logs }: { logs: LogEntry[] }) {
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center">
-        <p className="text-sm font-medium text-text">No sessions yet</p>
-        <p className="mt-1 text-xs text-muted">
-          Completed work sessions and breaks will show up here, grouped by day.
-        </p>
-      </div>
+      <EmptyState
+        icon={
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 3v18h18" />
+            <path d="m7 14 4-4 3 3 5-6" />
+          </svg>
+        }
+        title="No sessions logged"
+        description="Completed work sessions and breaks will appear here as an instrument log, grouped by day."
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {groups.map((group) => (
-        <section key={group.key} aria-label={prettyDay(group.epoch)}>
-          <div className="mb-2 flex items-baseline justify-between gap-2 px-1">
-            <h2 className="text-sm font-semibold tracking-tight text-text">
-              {prettyDay(group.epoch)}
-            </h2>
+    <div className="flex flex-col gap-8">
+      {groups.map((group, gi) => (
+        <section
+          key={group.key}
+          aria-label={dayAria(group.epoch)}
+          className="animate-fade-up"
+          style={{ animationDelay: `${gi * 70}ms` }}
+        >
+          {/* Day header: mono date readout, hairline rule, mono focus total. */}
+          <div className="mb-3 flex items-center gap-3">
+            <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.18em] text-muted tabular-nums">
+              {monoDateLabel(group.epoch)}
+            </span>
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 bg-gradient-to-r from-border-strong/80 to-transparent"
+            />
             {group.focusMs > 0 && (
-              <span className="text-[11px] text-muted tabular-nums">
+              <span className="readout shrink-0 text-[0.6875rem] font-medium uppercase tracking-wider text-accent/80 tabular-nums">
                 {msToHuman(group.focusMs)} focus
               </span>
             )}
           </div>
-          <div className="flex flex-col gap-2">
+
+          <div className="flex flex-col gap-2.5">
             {group.entries.map((entry) => (
               <EntryRow key={entry.id} entry={entry} />
             ))}

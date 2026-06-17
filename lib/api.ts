@@ -13,6 +13,7 @@ import type {
   Doc,
   EndReason,
   LogEntry,
+  Milestone,
   Objective,
   Project,
   Schedule,
@@ -69,6 +70,7 @@ async function request<T>(
 export type StartSessionInput = {
   kind: "work" | "break";
   projectId?: string | null;
+  milestoneId?: string | null;
   taskName: string;
   objectives?: Objective[];
   estimateMs: number;
@@ -194,6 +196,79 @@ export async function createProject(name: string): Promise<Project> {
     body: JSON.stringify({ name }),
   });
   return project;
+}
+
+/** PATCH /api/projects/[id] — edit name/archived/description/startDate/completedAt. */
+export async function updateProject(
+  id: string,
+  patch: Partial<
+    Pick<
+      Project,
+      "name" | "archived" | "description" | "startDate" | "completedAt"
+    >
+  >,
+): Promise<Project> {
+  const { project } = await request<{ project: Project }>(
+    `/api/projects/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(patch) },
+  );
+  return project;
+}
+
+/** DELETE /api/projects/[id] — delete project + cascade its milestones. */
+export async function deleteProject(id: string): Promise<boolean> {
+  const { ok } = await request<{ ok: boolean }>(
+    `/api/projects/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+  return ok;
+}
+
+// ----------------------------------------------------------------------------
+// Milestones
+// ----------------------------------------------------------------------------
+
+/** GET /api/milestones (optionally ?projectId=…). */
+export async function getMilestones(projectId?: string): Promise<Milestone[]> {
+  const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const { milestones } = await request<{ milestones: Milestone[] }>(
+    `/api/milestones${qs}`,
+  );
+  return milestones;
+}
+
+/** POST /api/milestones — create a milestone in a project. */
+export async function createMilestone(input: {
+  projectId: string;
+  title: string;
+  targetDate?: string | null;
+}): Promise<Milestone> {
+  const { milestone } = await request<{ milestone: Milestone }>(
+    "/api/milestones",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  return milestone;
+}
+
+/** PATCH /api/milestones/[id] — edit title/targetDate/done/order. */
+export async function updateMilestone(
+  id: string,
+  patch: Partial<Pick<Milestone, "title" | "targetDate" | "done" | "order">>,
+): Promise<Milestone> {
+  const { milestone } = await request<{ milestone: Milestone }>(
+    `/api/milestones/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(patch) },
+  );
+  return milestone;
+}
+
+/** DELETE /api/milestones/[id]. */
+export async function deleteMilestone(id: string): Promise<boolean> {
+  const { ok } = await request<{ ok: boolean }>(
+    `/api/milestones/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+  return ok;
 }
 
 // ----------------------------------------------------------------------------

@@ -1,14 +1,19 @@
 "use client";
 
 // components/EntryEditor.tsx
-// Edit form for a single LogEntry. Lets the user edit the task/label name, the
-// objectives list (add / rename / toggle done / remove), the start & end times,
-// and the status (completed / cancelled). Calls back with a Partial<LogEntry>
-// patch on save; the parent persists it via updateLog. No data fetching here.
+// Edit form for a single LogEntry. Lets the user edit the task name, reassign
+// the project AND its milestone, edit the tasks (objectives) list, the start &
+// end times, and the status (completed / cancelled). Calls back with a
+// Partial<LogEntry> patch on save; the parent persists it via updateLog (which
+// re-snapshots project/milestone names). Milestones for the selected project are
+// loaded on demand. Styled to the blue-dark design system.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { LogEntry, Objective, Project } from "@/lib/types";
+import type { LogEntry, Milestone, Objective, Project } from "@/lib/types";
+import { getMilestones } from "@/lib/api";
+import { dayKeyToEpoch } from "@/lib/projects";
+import { Card } from "@/components/ui/Card";
 
 /** epoch ms -> value for an <input type="datetime-local"> in LOCAL time. */
 function epochToLocalInput(epoch: number): string {
@@ -25,6 +30,16 @@ function localInputToEpoch(value: string): number | null {
   if (!value) return null;
   const ms = new Date(value).getTime();
   return Number.isFinite(ms) ? ms : null;
+}
+
+/** Pretty short label for a milestone's target date, e.g. "Jun 24". */
+function targetLabel(targetDate: string | null): string {
+  const e = dayKeyToEpoch(targetDate ?? "");
+  if (e === null) return "";
+  return new Date(e).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export type EntryEditorProps = {
@@ -47,8 +62,12 @@ export default function EntryEditor({
 
   const [taskName, setTaskName] = useState(entry.taskName);
   const [projectId, setProjectId] = useState<string | null>(entry.projectId);
-  const [objectives, setObjectives] = useState<Objective[]>(
-    () => entry.objectives.map((o) => ({ ...o })),
+  const [milestoneId, setMilestoneId] = useState<string | null>(
+    entry.milestoneId,
+  );
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [objectives, setObjectives] = useState<Objective[]>(() =>
+    entry.objectives.map((o) => ({ ...o })),
   );
   const [startInput, setStartInput] = useState(() =>
     epochToLocalInput(entry.startedAt),
@@ -75,6 +94,53 @@ export default function EntryEditor({
     }
     return opts;
   }, [projects, entry.projectId, entry.projectName]);
+
+  // Load milestones whenever the selected project changes. If the project is
+  // cleared, no milestones apply (and we clear the selection).
+  useEffect(() => {
+    if (!isWork || !projectId) {
+      setMilestones([]);
+      return;
+    }
+    let cancelled = false;
+    void getMilestones(projectId)
+      .then((m) => {
+        if (!cancelled) setMilestones(m);
+      })
+      .catch(() => {
+        if (!cancelled) setMilestones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isWork, projectId]);
+
+  // Milestone options: loaded milestones for the project, plus the entry's
+  // current milestone if it isn't in the list (e.g. deleted) so it stays shown.
+  const milestoneOptions = useMemo(() => {
+    const opts = milestones.map((m) => ({
+      id: m.id,
+      label: m.title + (m.targetDate ? ` · ${targetLabel(m.targetDate)}` : ""),
+    }));
+    if (
+      milestoneId &&
+      entry.milestoneId === milestoneId &&
+      !milestones.some((m) => m.id === milestoneId)
+    ) {
+      opts.push({
+        id: milestoneId,
+        label: entry.milestoneName || "(unknown milestone)",
+      });
+    }
+    return opts;
+  }, [milestones, milestoneId, entry.milestoneId, entry.milestoneName]);
+
+  function handleProjectChange(value: string) {
+    const next = value || null;
+    setProjectId(next);
+    // A milestone belongs to a project — clear it when the project changes.
+    setMilestoneId(null);
+  }
 
   function updateObjective(id: string, patch: Partial<Objective>) {
     setObjectives((prev) =>
@@ -128,21 +194,22 @@ export default function EntryEditor({
       startedAt,
       endedAt,
       status,
-      ...(isWork ? { projectId } : {}),
+      ...(isWork ? { projectId, milestoneId } : {}),
     });
   }
 
   const fieldClass =
-    "w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent";
+    "w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]";
+
+  const labelClass =
+    "mb-1.5 block font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-faint";
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {/* Task / label name */}
+    <Card className="p-5 sm:p-6">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {/* Task name */}
       <div>
-        <label
-          htmlFor="entry-task"
-          className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted"
-        >
+        <label htmlFor="entry-task" className={labelClass}>
           {isWork ? "Task name" : "Break label"}
         </label>
         <input
@@ -155,38 +222,53 @@ export default function EntryEditor({
         />
       </div>
 
-      {/* Project (work only) */}
+      {/* Project + milestone (work only) */}
       {isWork && (
-        <div>
-          <label
-            htmlFor="entry-project"
-            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted"
-          >
-            Project
-          </label>
-          <select
-            id="entry-project"
-            value={projectId ?? ""}
-            onChange={(e) => setProjectId(e.target.value || null)}
-            className={fieldClass}
-          >
-            <option value="">No project</option>
-            {projectOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="entry-project" className={labelClass}>
+              Project
+            </label>
+            <select
+              id="entry-project"
+              value={projectId ?? ""}
+              onChange={(e) => handleProjectChange(e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">No project</option>
+              {projectOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="entry-milestone" className={labelClass}>
+              Milestone
+            </label>
+            <select
+              id="entry-milestone"
+              value={milestoneId ?? ""}
+              onChange={(e) => setMilestoneId(e.target.value || null)}
+              disabled={!projectId || milestoneOptions.length === 0}
+              className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <option value="">No milestone</option>
+              {milestoneOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
       {/* Times */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label
-            htmlFor="entry-start"
-            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted"
-          >
+          <label htmlFor="entry-start" className={labelClass}>
             Start
           </label>
           <input
@@ -198,10 +280,7 @@ export default function EntryEditor({
           />
         </div>
         <div>
-          <label
-            htmlFor="entry-end"
-            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted"
-          >
+          <label htmlFor="entry-end" className={labelClass}>
             End
           </label>
           <input
@@ -216,9 +295,7 @@ export default function EntryEditor({
 
       {/* Status */}
       <div>
-        <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted">
-          Status
-        </span>
+        <span className={labelClass}>Status</span>
         <div className="flex gap-2">
           {(["completed", "cancelled"] as const).map((s) => {
             const active = status === s;
@@ -228,12 +305,12 @@ export default function EntryEditor({
                 type="button"
                 onClick={() => setStatus(s)}
                 aria-pressed={active}
-                className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-medium capitalize transition-colors ${
+                className={`flex-1 rounded-xl border px-3 py-2.5 font-mono text-xs font-medium uppercase tracking-wider transition-colors ${
                   active
                     ? s === "completed"
-                      ? "border-success bg-success/15 text-success"
-                      : "border-danger bg-danger/15 text-danger"
-                    : "border-border bg-surface-2 text-muted hover:text-text"
+                      ? "border-success/50 bg-success/15 text-success"
+                      : "border-danger/50 bg-danger/15 text-danger"
+                    : "border-border bg-surface-2 text-muted hover:border-border-strong hover:text-text"
                 }`}
               >
                 {s}
@@ -243,16 +320,14 @@ export default function EntryEditor({
         </div>
       </div>
 
-      {/* Objectives (work only) */}
+      {/* Tasks (objectives, work only) */}
       {isWork && (
         <div>
-          <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted">
-            Objectives
-          </span>
+          <span className={labelClass}>Tasks</span>
           <div className="flex flex-col gap-2">
             {objectives.length === 0 && (
-              <p className="rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-xs text-muted">
-                No objectives. Add one below.
+              <p className="rounded-xl border border-dashed border-border bg-surface/60 px-3 py-3 text-xs text-muted">
+                No tasks. Add one below.
               </p>
             )}
             {objectives.map((o) => (
@@ -268,8 +343,8 @@ export default function EntryEditor({
                   onClick={() => updateObjective(o.id, { done: !o.done })}
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
                     o.done
-                      ? "border-accent bg-accent text-accent-contrast"
-                      : "border-border bg-surface"
+                      ? "border-accent bg-accent text-accent-contrast shadow-[0_0_8px_var(--glow)]"
+                      : "border-border-strong bg-surface hover:border-accent/50"
                   }`}
                 >
                   {o.done && (
@@ -294,7 +369,7 @@ export default function EntryEditor({
                   onChange={(e) =>
                     updateObjective(o.id, { text: e.target.value })
                   }
-                  aria-label="Objective text"
+                  aria-label="Task text"
                   className={`min-w-0 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ${
                     o.done ? "text-muted line-through" : "text-text"
                   }`}
@@ -302,7 +377,7 @@ export default function EntryEditor({
                 <button
                   type="button"
                   onClick={() => removeObjective(o.id)}
-                  aria-label="Remove objective"
+                  aria-label="Remove task"
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-danger/15 hover:text-danger"
                 >
                   <svg
@@ -311,7 +386,7 @@ export default function EntryEditor({
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2"
+                    strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden="true"
@@ -322,7 +397,7 @@ export default function EntryEditor({
               </div>
             ))}
 
-            {/* Add objective */}
+            {/* Add task */}
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -334,8 +409,8 @@ export default function EntryEditor({
                     addObjective();
                   }
                 }}
-                placeholder="Add an objective…"
-                aria-label="New objective"
+                placeholder="Add a task…"
+                aria-label="New task"
                 className={fieldClass}
               />
               <button
@@ -352,17 +427,20 @@ export default function EntryEditor({
       )}
 
       {formError && (
-        <p className="rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
           {formError}
         </p>
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 border-t border-border/70 pt-5">
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-primary h-12 flex-1 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save changes"}
         </button>
@@ -370,11 +448,12 @@ export default function EntryEditor({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-secondary h-12 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancel
         </button>
       </div>
-    </form>
+      </form>
+    </Card>
   );
 }

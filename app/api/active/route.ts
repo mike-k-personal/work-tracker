@@ -25,6 +25,7 @@ import {
   appendLog,
   getSettings,
   getProjects,
+  getMilestones,
 } from "@/lib/store";
 import {
   pauseSession,
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const b = (body ?? {}) as {
     kind?: unknown;
     projectId?: unknown;
+    milestoneId?: unknown;
     taskName?: unknown;
     objectives?: unknown;
     estimateMs?: unknown;
@@ -137,6 +139,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Resolve the milestone (work sessions only): must belong to the resolved
+  // project; snapshot its title so logs survive a rename/removal.
+  let milestoneId: string | null = null;
+  let milestoneName = "";
+  if (kind === "work" && projectId && typeof b.milestoneId === "string" && b.milestoneId) {
+    const milestone = (await getMilestones()).find(
+      (m) => m.id === b.milestoneId && m.projectId === projectId,
+    );
+    if (milestone) {
+      milestoneId = milestone.id;
+      milestoneName = milestone.title;
+    }
+  }
+
   const now = Date.now();
   const taskName =
     typeof b.taskName === "string" && b.taskName.trim()
@@ -150,6 +166,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     kind,
     projectId,
     projectName,
+    milestoneId,
+    milestoneName,
     taskName,
     objectives: kind === "work" ? normalizeObjectives(b.objectives, now) : [],
     status: "running",
@@ -212,6 +230,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       kind: "break",
       projectId: null,
       projectName: "",
+      milestoneId: null,
+      milestoneName: "",
       taskName,
       objectives: [],
       status: "running",

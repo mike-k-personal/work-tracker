@@ -5,7 +5,9 @@
 // start/end time inputs ("HH:MM"), and a delete button. Mobile-friendly with
 // large touch targets. Purely presentational/controlled — all edits are pushed
 // up via onChange/onRemove; the parent (ScheduleEditor) owns the list and
-// validation/sorting.
+// validation/sorting. Restyled onto the blue-dark design system: work blocks
+// read as accent, break blocks as a calmer muted/success tone, with a colored
+// left rail so a stack of blocks scans at a glance.
 
 import type { Block, BlockType } from "@/lib/types";
 
@@ -26,11 +28,26 @@ export default function BlockRow({
 
   return (
     <div
-      className={`rounded-xl border bg-surface p-3 ${
-        invalid ? "border-danger/60" : "border-border"
+      className={`relative overflow-hidden rounded-xl border bg-surface p-3 pl-4 transition-colors ${
+        invalid
+          ? "border-danger/60"
+          : isWork
+            ? "border-border hover:border-accent/40"
+            : "border-border hover:border-border-strong"
       }`}
       role="listitem"
     >
+      {/* Glowing colored left rail keys the block type at a glance:
+          work = electric accent, break = calmer success/muted. */}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-y-0 left-0 w-1 ${
+          isWork
+            ? "bg-accent shadow-[0_0_12px_0_var(--glow)]"
+            : "bg-success/50"
+        }`}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         {/* Type toggle: work | break */}
         <div
@@ -48,12 +65,12 @@ export default function BlockRow({
                 onClick={() => {
                   if (block.type !== t) onChange({ type: t });
                 }}
-                className={`px-3 py-2 text-xs font-semibold capitalize transition-colors ${
+                className={`h-9 px-3.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider transition-colors ${
                   selected
                     ? t === "work"
                       ? "bg-accent text-accent-contrast"
                       : "bg-success/20 text-success"
-                    : "bg-surface-2 text-muted hover:text-text"
+                    : "bg-surface-2 text-faint hover:text-text"
                 }`}
               >
                 {t}
@@ -69,7 +86,7 @@ export default function BlockRow({
           placeholder={isWork ? "Deep work" : "Break"}
           aria-label="Block label"
           onChange={(e) => onChange({ label: e.target.value })}
-          className="min-w-0 flex-1 basis-40 rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+          className="h-9 min-w-0 flex-1 basis-40 rounded-lg border border-border bg-surface-2 px-3 text-sm text-text outline-none transition-colors focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
         />
 
         {/* Delete */}
@@ -77,7 +94,7 @@ export default function BlockRow({
           type="button"
           aria-label="Remove block"
           onClick={onRemove}
-          className="shrink-0 rounded-lg border border-border bg-surface-2 p-2 text-muted transition-colors hover:border-danger/60 hover:text-danger"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-muted transition-colors hover:border-danger/60 hover:text-danger active:scale-95"
         >
           <svg
             width="18"
@@ -95,35 +112,35 @@ export default function BlockRow({
         </button>
       </div>
 
-      {/* Times */}
-      <div className="mt-2 flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-muted">
+      {/* Times — mono HH:MM readouts, instrument-styled. */}
+      <div className="mt-2.5 flex items-center gap-2">
+        <label className="flex items-center gap-2 font-mono text-[0.625rem] uppercase tracking-wider text-faint">
           <span className="shrink-0">Start</span>
           <input
             type="time"
             value={block.start}
             aria-label="Start time"
             onChange={(e) => onChange({ start: e.target.value })}
-            className="w-[7.5rem] rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none focus:border-accent"
+            className="h-9 w-[7.5rem] rounded-lg border border-border bg-surface-2 px-2.5 font-mono text-sm tabular-nums tracking-wide text-text outline-none transition-colors focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
         </label>
-        <span className="text-muted" aria-hidden="true">
-          –
+        <span className="text-faint" aria-hidden="true">
+          →
         </span>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
+        <label className="flex items-center gap-2 font-mono text-[0.625rem] uppercase tracking-wider text-faint">
           <span className="shrink-0">End</span>
           <input
             type="time"
             value={block.end}
             aria-label="End time"
             onChange={(e) => onChange({ end: e.target.value })}
-            className="w-[7.5rem] rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none focus:border-accent"
+            className="h-9 w-[7.5rem] rounded-lg border border-border bg-surface-2 px-2.5 font-mono text-sm tabular-nums tracking-wide text-text outline-none transition-colors focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
         </label>
       </div>
 
       {invalid && (
-        <p className="mt-2 text-xs text-danger">
+        <p className="mt-2 font-mono text-[0.6875rem] uppercase tracking-wider text-danger">
           End time must be after start time.
         </p>
       )}

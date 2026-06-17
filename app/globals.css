@@ -1,50 +1,86 @@
 @import "tailwindcss";
 
-/* Work Tracker — dark, minimal, mobile-first theme.
- * Dark is the default and only theme (no toggle). Tokens are exposed both as
- * CSS variables and as Tailwind color/spacing utilities via @theme. */
+/* ===========================================================================
+ * Work Tracker — "Precision instrument / observatory" design system.
+ * Dark-only, blue. Deep midnight-navy with a faint blueprint grid, a soft
+ * accent glow, and fine film grain. Characterful display grotesque (Bricolage)
+ * + refined body grotesque (Hanken) + technical mono (JetBrains) for numerics.
+ * Tokens are exposed as CSS vars AND Tailwind utilities via @theme.
+ * ========================================================================= */
 
 :root {
-  /* Core palette (near-black surfaces, light text, indigo accent). */
-  --bg: #0a0a0a; /* app background */
-  --surface: #151518; /* cards, panels, raised UI */
-  --surface-2: #1f1f24; /* inputs, hover, secondary surface */
-  --border: #2a2a31; /* hairline borders */
-  --text: #ededed; /* primary text */
-  --muted: #9a9aa5; /* secondary / labels */
-  --accent: #6366f1; /* indigo-500 — primary accent */
-  --accent-hover: #7c7ff3;
-  --accent-contrast: #ffffff; /* text on accent */
-  --success: #34d399;
+  /* Neutrals — deep, cool, blue-tinted slate (midnight → light). */
+  --bg: #060910; /* app background (midnight navy-black) */
+  --bg-2: #0a0f1a; /* raised bands */
+  --surface: #0e1422; /* cards, panels */
+  --surface-2: #161d2e; /* inputs, hover, secondary */
+  --surface-3: #202a40; /* active / pressed */
+  --border: #1b2335; /* hairline borders */
+  --border-strong: #2c3850; /* emphasized borders */
+  --text: #eef2f8; /* primary text */
+  --muted: #97a3ba; /* secondary / labels */
+  --faint: #5c6a85; /* tertiary / disabled */
+
+  /* Accent — sky/azure blue, electric on near-black, with a deep-blue partner. */
+  --accent: #38bdf8; /* sky-400 — primary accent (reads bright on midnight) */
+  --accent-hover: #7dd3fc; /* sky-300 */
+  --accent-strong: #0ea5e9; /* sky-500 — solid base */
+  --accent-2: #4f7bf6; /* periwinkle blue — gradient partner */
+  --accent-contrast: #04121f; /* near-black text on bright accent */
+  --accent-soft: #0c2233; /* accent-tinted fill behind soft chips */
+  --glow: rgb(56 189 248 / 0.45); /* accent glow color */
+
+  /* Status colors. */
+  --success: #4ade80;
   --warning: #fbbf24;
-  --danger: #f87171;
+  --danger: #fb7185;
+
+  /* Blueprint grid + glow + grain controls. */
+  --grid-line: rgb(86 130 190 / 0.05);
+  --grid-size: 56px;
+
+  /* Soft shadows for raised cards (cool-toned, with a faint glow). */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow: 0 8px 28px -10px rgb(0 0 0 / 0.65);
+  --shadow-lg: 0 22px 50px -18px rgb(0 0 0 / 0.7);
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-2: var(--accent-2);
   --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
 
-  /* System font stack + a mono stack for the big timer. */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
-    Monaco, Consolas, "Liberation Mono", monospace;
+  --shadow-card: var(--shadow);
+  --shadow-card-lg: var(--shadow-lg);
+
+  /* Font families. The *-src vars are injected on <html> by next/font (see
+     layout.tsx); these @theme tokens become the Tailwind font-* utilities. */
+  --font-display: var(--font-display-src), "Bricolage Grotesque", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-sans: var(--font-sans-src), "Hanken Grotesk", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji";
+  --font-mono: var(--font-mono-src), "JetBrains Mono", ui-monospace,
+    SFMono-Regular, Menlo, monospace;
 }
 
 html {
   color-scheme: dark;
-  /* Respect iOS safe areas / notches for the standalone PWA. */
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
 }
@@ -53,12 +89,46 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  /* Comfortable defaults for a focus app. */
   line-height: 1.5;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Avoid bounce/overscroll glow inside the installed app. */
   overscroll-behavior-y: none;
+}
+
+/* Atmosphere layer 1: faint blueprint grid + a soft accent glow at the top. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    radial-gradient(
+      70rem 34rem at 50% -10rem,
+      rgb(56 130 246 / 0.16),
+      transparent 70%
+    );
+  background-size:
+    var(--grid-size) var(--grid-size),
+    var(--grid-size) var(--grid-size),
+    100% 100%;
+  /* Fade the grid out toward the bottom so it reads as atmosphere, not a table. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+}
+
+/* Atmosphere layer 2: fine film grain (SVG fractal noise), barely-there. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* Large, comfortable tap targets on touch devices. */
@@ -79,11 +149,192 @@ textarea {
   border: 1px solid var(--border);
 }
 
-::selection {
-  background: color-mix(in oklab, var(--accent) 40%, transparent);
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
 }
 
-/* Tabular numerals so the timer doesn't jitter as digits change. */
+:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+  color: #fff;
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+ * Component classes — the shared visual language. The React primitives in
+ * components/ui build on these. Prefer them for any new UI.
+ * ------------------------------------------------------------------------- */
+
+@layer components {
+  /* Display headings get the characterful grotesque + tight tracking. */
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* Eyebrow / section label — mono, uppercase, wide tracking (instrument feel). */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* Big numeric readouts (timer, metrics) — mono + tabular. */
+  .readout {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* Raised surface card with a hairline border + faint top sheen. */
+  .card {
+    position: relative;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.02), transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card-hover {
+    transition:
+      border-color 0.18s ease,
+      transform 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+  .card-hover:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  /* Primary CTA — gradient sky→blue with a glow. */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background-image: linear-gradient(
+      135deg,
+      var(--accent-hover),
+      var(--accent-2)
+    );
+    color: #051018;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    box-shadow:
+      0 6px 20px -8px var(--glow),
+      inset 0 1px 0 rgb(255 255 255 / 0.25);
+    transition:
+      filter 0.16s ease,
+      transform 0.06s ease,
+      box-shadow 0.16s ease;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.07);
+    box-shadow:
+      0 10px 28px -8px var(--glow),
+      inset 0 1px 0 rgb(255 255 255 / 0.3);
+  }
+  .btn-primary:active {
+    transform: scale(0.985);
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+    filter: none;
+    box-shadow: none;
+  }
+
+  /* Secondary / neutral button. */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 500;
+    transition:
+      border-color 0.16s ease,
+      color 0.16s ease,
+      background 0.16s ease;
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent-hover);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.5;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion — high-impact page-load reveals + utilities. Respects reduced motion.
+ * Stagger with inline style={{ animationDelay: `${i * 60}ms` }}.
+ * ------------------------------------------------------------------------- */
+
+@keyframes wt-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wt-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wt-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: wt-fade-up 0.55s cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+.animate-fade-in {
+  animation: wt-fade-in 0.45s ease both;
+}
+.animate-pulse-glow {
+  animation: wt-pulse-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-pulse-glow,
+  .card-hover {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }

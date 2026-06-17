@@ -5,6 +5,7 @@
 //   - >= 768px (md): fixed LEFT sidebar.
 //   - <  768px:      fixed BOTTOM tab bar (thumb-reachable, safe-area aware).
 // Active route is highlighted. Icons are simple inline SVGs (no icon lib).
+// Schedule is intentionally NOT here — it lives under Settings now.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,8 +18,8 @@ type Item = {
 };
 
 const iconProps = {
-  width: 24,
-  height: 24,
+  width: 22,
+  height: 22,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
@@ -30,21 +31,34 @@ const iconProps = {
 const ITEMS: Item[] = [
   {
     href: "/",
-    label: "Home",
+    label: "Focus",
     icon: (
       <svg {...iconProps} aria-hidden="true">
-        <path d="M3 10.5 12 3l9 7.5" />
-        <path d="M5 9.5V21h14V9.5" />
+        <circle cx="12" cy="13" r="8" />
+        <path d="M12 13V9.5" />
+        <path d="M9 2h6" />
+        <path d="M12 2v2.5" />
       </svg>
     ),
   },
   {
-    href: "/schedule",
-    label: "Schedule",
+    href: "/dashboard",
+    label: "Dashboard",
     icon: (
       <svg {...iconProps} aria-hidden="true">
-        <rect x="3" y="4.5" width="18" height="16" rx="2" />
-        <path d="M3 9h18M8 3v3M16 3v3" />
+        <rect x="3" y="3" width="7" height="9" rx="1.6" />
+        <rect x="14" y="3" width="7" height="5" rx="1.6" />
+        <rect x="14" y="12" width="7" height="9" rx="1.6" />
+        <rect x="3" y="16" width="7" height="5" rx="1.6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/metrics",
+    label: "Metrics",
+    icon: (
+      <svg {...iconProps} aria-hidden="true">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </svg>
     ),
   },
@@ -56,15 +70,6 @@ const ITEMS: Item[] = [
         <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
         <path d="M3 4v4h4" />
         <path d="M12 8v4l3 2" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: (
-      <svg {...iconProps} aria-hidden="true">
-        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </svg>
     ),
   },
@@ -85,6 +90,24 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function Wordmark() {
+  return (
+    <div className="mb-8 flex items-center gap-2.5 px-2">
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-hover to-accent-2 font-display text-base font-bold text-[#051018] shadow-[0_6px_18px_-6px_var(--glow)]">
+        W
+      </span>
+      <span className="flex flex-col leading-none">
+        <span className="font-display text-sm font-semibold tracking-tight">
+          Work Tracker
+        </span>
+        <span className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-faint">
+          plan · focus · review
+        </span>
+      </span>
+    </div>
+  );
+}
+
 export default function Nav() {
   const pathname = usePathname() ?? "/";
 
@@ -93,16 +116,9 @@ export default function Nav() {
       {/* Desktop / tablet: left sidebar */}
       <nav
         aria-label="Primary"
-        className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-surface px-3 py-5 md:flex"
+        className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-surface/70 px-3 py-5 backdrop-blur-xl md:flex"
       >
-        <div className="mb-6 flex items-center gap-3 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-base font-bold text-accent-contrast">
-            W
-          </span>
-          <span className="text-sm font-semibold tracking-tight">
-            Work Tracker
-          </span>
-        </div>
+        <Wordmark />
         <ul className="flex flex-1 flex-col gap-1">
           {ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
@@ -111,14 +127,24 @@ export default function Nav() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-surface-2 text-text"
+                      ? "bg-accent-soft text-text"
                       : "text-muted hover:bg-surface-2 hover:text-text"
                   }`}
                 >
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent shadow-[0_0_12px_var(--glow)]"
+                    />
+                  ) : null}
                   <span
-                    className={active ? "text-accent" : "text-muted"}
+                    className={
+                      active
+                        ? "text-accent-hover"
+                        : "text-faint group-hover:text-muted"
+                    }
                     aria-hidden="true"
                   >
                     {item.icon}
@@ -134,7 +160,7 @@ export default function Nav() {
       {/* Mobile: bottom tab bar */}
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
       >
         {ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
@@ -143,10 +169,16 @@ export default function Nav() {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
-                active ? "text-accent" : "text-muted"
+              className={`relative flex flex-1 flex-col items-center gap-1 py-2 font-mono text-[9px] uppercase tracking-wider transition-colors ${
+                active ? "text-accent-hover" : "text-faint"
               }`}
             >
+              {active ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 h-0.5 w-8 rounded-full bg-accent shadow-[0_0_10px_var(--glow)]"
+                />
+              ) : null}
               <span aria-hidden="true">{item.icon}</span>
               {item.label}
             </Link>

@@ -24,7 +24,7 @@ export default function ExpiredBanner({
   return (
     <div
       role="alert"
-      className={`flex items-center gap-3 rounded-2xl border border-danger/40 bg-danger/10 px-4 py-3 text-danger ${className}`}
+      className={`animate-fade-up flex items-center gap-3 rounded-2xl border border-danger/40 bg-danger/10 px-4 py-3 text-danger shadow-[0_0_20px_-8px_rgb(251_113_133_/_0.5)] ${className}`}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger/20">
         <svg
@@ -45,7 +45,7 @@ export default function ExpiredBanner({
       </span>
       <p className="text-sm font-medium leading-snug">{message}</p>
       {typeof overMs === "number" && overMs > 0 && (
-        <span className="ml-auto shrink-0 text-xs font-semibold tabular-nums opacity-80">
+        <span className="readout ml-auto shrink-0 text-xs font-semibold uppercase tracking-[0.1em] opacity-80">
           {Math.floor(overMs / 60_000)}m over
         </span>
       )}

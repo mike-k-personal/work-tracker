@@ -34,8 +34,7 @@ export default function ExtendControls({
     }
   };
 
-  const btn =
-    "rounded-xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:border-accent hover:text-accent disabled:opacity-40";
+  const btn = "btn-secondary px-4 py-2.5 text-sm readout";
 
   return (
     <div className={`flex flex-wrap items-center justify-center gap-2 ${className}`}>
@@ -76,11 +75,11 @@ export default function ExtendControls({
                 setCustom("");
               }
             }}
-            className="w-20 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent"
+            className="readout w-20 rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none transition-colors focus:border-accent"
           />
           <button
             type="button"
-            className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-hover disabled:opacity-40"
+            className="btn-primary px-4 py-2.5 text-sm"
             disabled={disabled || !(parseInt(custom, 10) > 0)}
             onClick={submitCustom}
           >

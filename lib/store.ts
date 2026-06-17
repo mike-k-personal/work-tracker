@@ -21,6 +21,7 @@ import type {
   BlockType,
   DayType,
   LogEntry,
+  Milestone,
   Project,
   Schedule,
   Settings,
@@ -166,6 +167,7 @@ export function defaultDoc(): Doc {
     active: null,
     logs: [],
     projects: [],
+    milestones: [],
     schedule: defaultSchedule(),
     settings: defaultSettings(),
   };
@@ -180,6 +182,7 @@ type RawValue =
   | null
   | LogEntry[]
   | Project[]
+  | Milestone[]
   | Schedule
   | Settings;
 
@@ -305,6 +308,9 @@ class FileDriver implements Driver {
         projects: Array.isArray(parsed.projects)
           ? (parsed.projects as Project[])
           : base.projects,
+        milestones: Array.isArray(parsed.milestones)
+          ? (parsed.milestones as Milestone[])
+          : base.milestones,
         // Keep the raw stored schedule as-is here; getSchedule() normalizes and
         // migrates (legacy `weekly` shape included) on every read.
         schedule:
@@ -347,7 +353,14 @@ class FileDriver implements Driver {
 
   private docFieldForKey(
     key: string,
-  ): "active" | "logs" | "projects" | "schedule" | "settings" | null {
+  ):
+    | "active"
+    | "logs"
+    | "projects"
+    | "milestones"
+    | "schedule"
+    | "settings"
+    | null {
     switch (key) {
       case STORE_KEYS.active:
         return "active";
@@ -355,6 +368,8 @@ class FileDriver implements Driver {
         return "logs";
       case STORE_KEYS.projects:
         return "projects";
+      case STORE_KEYS.milestones:
+        return "milestones";
       case STORE_KEYS.schedule:
         return "schedule";
       case STORE_KEYS.settings:
@@ -366,7 +381,13 @@ class FileDriver implements Driver {
 
   private assignField(
     doc: Doc,
-    field: "active" | "logs" | "projects" | "schedule" | "settings",
+    field:
+      | "active"
+      | "logs"
+      | "projects"
+      | "milestones"
+      | "schedule"
+      | "settings",
     value: RawValue,
   ): void {
     // Assign through a typed switch to keep the Doc shape sound.
@@ -379,6 +400,9 @@ class FileDriver implements Driver {
         break;
       case "projects":
         doc.projects = (value as Project[]) ?? [];
+        break;
+      case "milestones":
+        doc.milestones = (value as Milestone[]) ?? [];
         break;
       case "schedule":
         doc.schedule = (value as Schedule) ?? defaultSchedule();
@@ -545,7 +569,12 @@ export async function addProject(name: string): Promise<Project> {
 
 export async function updateProject(
   id: string,
-  patch: Partial<Pick<Project, "name" | "archived">>,
+  patch: Partial<
+    Pick<
+      Project,
+      "name" | "archived" | "description" | "startDate" | "completedAt"
+    >
+  >,
 ): Promise<Project | null> {
   let updated: Project | null = null;
   await getDriver().mutate<Project[]>(STORE_KEYS.projects, (current) => {
@@ -566,6 +595,113 @@ export async function updateProject(
     return next;
   });
   return updated;
+}
+
+// ----------------------------------------------------------------------------
+// Milestones (objectives): the dated checkpoints inside a project.
+// ----------------------------------------------------------------------------
+
+export async function getMilestones(): Promise<Milestone[]> {
+  const milestones = await getDriver().read<Milestone[]>(STORE_KEYS.milestones);
+  return Array.isArray(milestones) ? milestones : [];
+}
+
+export async function setMilestones(milestones: Milestone[]): Promise<void> {
+  await getDriver().write<Milestone[]>(STORE_KEYS.milestones, milestones);
+}
+
+/**
+ * Create a milestone in a project. New milestones append to the end of the
+ * project's ordering (max order + 1). Returns the created milestone.
+ */
+export async function addMilestone(input: {
+  projectId: string;
+  title: string;
+  targetDate?: string | null;
+}): Promise<Milestone> {
+  const title = input.title.trim();
+  let result: Milestone | null = null;
+  await getDriver().mutate<Milestone[]>(STORE_KEYS.milestones, (current) => {
+    const milestones = Array.isArray(current) ? current : [];
+    const siblings = milestones.filter((m) => m.projectId === input.projectId);
+    const nextOrder =
+      siblings.reduce((max, m) => Math.max(max, m.order), -1) + 1;
+    const created: Milestone = {
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      title,
+      done: false,
+      doneAt: null,
+      targetDate: input.targetDate ?? null,
+      order: nextOrder,
+      createdAt: Date.now(),
+    };
+    result = created;
+    return [...milestones, created];
+  });
+  return result as unknown as Milestone;
+}
+
+export async function updateMilestone(
+  id: string,
+  patch: Partial<Pick<Milestone, "title" | "targetDate" | "done" | "order">>,
+): Promise<Milestone | null> {
+  let updated: Milestone | null = null;
+  await getDriver().mutate<Milestone[]>(STORE_KEYS.milestones, (current) => {
+    const milestones = Array.isArray(current) ? current : [];
+    const idx = milestones.findIndex((m) => m.id === id);
+    if (idx === -1) return milestones;
+    const prev = milestones[idx];
+    // Keep doneAt in sync with the done flag transition.
+    let doneAt = prev.doneAt;
+    if (typeof patch.done === "boolean" && patch.done !== prev.done) {
+      doneAt = patch.done ? Date.now() : null;
+    }
+    updated = {
+      ...prev,
+      ...patch,
+      id: prev.id,
+      projectId: prev.projectId,
+      title:
+        typeof patch.title === "string" && patch.title.trim()
+          ? patch.title.trim()
+          : prev.title,
+      doneAt,
+    };
+    const next = milestones.slice();
+    next[idx] = updated;
+    return next;
+  });
+  return updated;
+}
+
+export async function deleteMilestone(id: string): Promise<boolean> {
+  let removed = false;
+  await getDriver().mutate<Milestone[]>(STORE_KEYS.milestones, (current) => {
+    const milestones = Array.isArray(current) ? current : [];
+    const next = milestones.filter((m) => m.id !== id);
+    removed = next.length !== milestones.length;
+    return next;
+  });
+  return removed;
+}
+
+/** Delete a project and cascade-delete its milestones. */
+export async function deleteProject(id: string): Promise<boolean> {
+  let removed = false;
+  await getDriver().mutate<Project[]>(STORE_KEYS.projects, (current) => {
+    const projects = Array.isArray(current) ? current : [];
+    const next = projects.filter((p) => p.id !== id);
+    removed = next.length !== projects.length;
+    return next;
+  });
+  if (removed) {
+    await getDriver().mutate<Milestone[]>(STORE_KEYS.milestones, (current) => {
+      const milestones = Array.isArray(current) ? current : [];
+      return milestones.filter((m) => m.projectId !== id);
+    });
+  }
+  return removed;
 }
 
 export async function getSchedule(): Promise<Schedule> {
@@ -591,14 +727,16 @@ export async function setSettings(settings: Settings): Promise<void> {
 
 /** Full export for backup. */
 export async function getAll(): Promise<Doc> {
-  const [active, logs, projects, schedule, settings] = await Promise.all([
-    getActive(),
-    getLogs(),
-    getProjects(),
-    getSchedule(),
-    getSettings(),
-  ]);
-  return { active, logs, projects, schedule, settings };
+  const [active, logs, projects, milestones, schedule, settings] =
+    await Promise.all([
+      getActive(),
+      getLogs(),
+      getProjects(),
+      getMilestones(),
+      getSchedule(),
+      getSettings(),
+    ]);
+  return { active, logs, projects, milestones, schedule, settings };
 }
 
 /** Full import for backup restore (overwrites all keys). */
@@ -606,6 +744,7 @@ export async function setAll(doc: Doc): Promise<void> {
   await setActive(doc.active ?? null);
   await setLogs(Array.isArray(doc.logs) ? doc.logs : []);
   await setProjects(Array.isArray(doc.projects) ? doc.projects : []);
+  await setMilestones(Array.isArray(doc.milestones) ? doc.milestones : []);
   await setSchedule(doc.schedule ?? defaultSchedule());
   await setSettings({ ...defaultSettings(), ...(doc.settings ?? {}) });
 }

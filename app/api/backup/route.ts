@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type {
   Doc,
   LogEntry,
+  Milestone,
   Objective,
   Project,
   Settings,
@@ -93,6 +94,12 @@ function normalizeLogs(input: unknown): LogEntry[] {
           : null,
       projectName:
         typeof raw.projectName === "string" ? raw.projectName : "",
+      milestoneId:
+        typeof raw.milestoneId === "string" && raw.milestoneId
+          ? raw.milestoneId
+          : null,
+      milestoneName:
+        typeof raw.milestoneName === "string" ? raw.milestoneName : "",
       taskName:
         typeof raw.taskName === "string" ? raw.taskName : String(raw.taskName ?? ""),
       objectives,
@@ -132,6 +139,54 @@ function normalizeProjects(input: unknown): Project[] {
           ? raw.createdAt
           : now,
       ...(raw.archived === true ? { archived: true } : {}),
+      ...(typeof raw.description === "string"
+        ? { description: raw.description }
+        : {}),
+      ...(typeof raw.startDate === "string"
+        ? { startDate: raw.startDate }
+        : {}),
+      ...(typeof raw.completedAt === "number" && Number.isFinite(raw.completedAt)
+        ? { completedAt: raw.completedAt }
+        : {}),
+    });
+  }
+  return out;
+}
+
+function normalizeMilestones(input: unknown): Milestone[] {
+  if (!Array.isArray(input)) return [];
+  const now = Date.now();
+  const out: Milestone[] = [];
+  for (const raw of input) {
+    if (!isObject(raw)) continue;
+    const title = typeof raw.title === "string" ? raw.title.trim() : "";
+    const projectId =
+      typeof raw.projectId === "string" ? raw.projectId : "";
+    if (!title || !projectId) continue;
+    const done = raw.done === true;
+    out.push({
+      id: typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID(),
+      projectId,
+      title,
+      done,
+      doneAt:
+        typeof raw.doneAt === "number" && Number.isFinite(raw.doneAt)
+          ? raw.doneAt
+          : done && typeof raw.createdAt === "number"
+            ? raw.createdAt
+            : null,
+      targetDate:
+        typeof raw.targetDate === "string" && raw.targetDate
+          ? raw.targetDate
+          : null,
+      order:
+        typeof raw.order === "number" && Number.isFinite(raw.order)
+          ? raw.order
+          : out.length,
+      createdAt:
+        typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt)
+          ? raw.createdAt
+          : now,
     });
   }
   return out;
@@ -199,6 +254,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     active: null, // never restore an in-progress session from a backup
     logs: normalizeLogs(body.logs),
     projects: normalizeProjects(body.projects),
+    milestones: normalizeMilestones(body.milestones),
     schedule: normalizeSchedule(body.schedule),
     settings: normalizeSettings(body.settings),
   };

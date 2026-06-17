@@ -1,13 +1,13 @@
 {
   "name": "Work Tracker",
   "short_name": "Tracker",
-  "description": "Personal day-planner, focus timer and Pomodoro tracker.",
+  "description": "Plan your projects, track milestones, and run focused work sessions.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#060910",
+  "theme_color": "#060910",
   "categories": ["productivity", "utilities"],
   "icons": [
     {

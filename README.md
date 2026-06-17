@@ -1,15 +1,16 @@
 # Work Tracker
 
-A personal, single-user **day-planner + focus/Pomodoro tracker**, built as an installable **PWA**.
+A personal, single-user **project planner + focus-session tracker**, built as an installable **PWA**. Plan what you'll do for work and track progress toward your goals.
 
-- A **conceptual schedule** — mark which weekdays are work vs off, set one schedule for work days and one for off days, then override individual dates as needed. It shows what you *should* be doing now and nudges; it never starts/stops anything.
-- **Projects** — pick (or add) a project, then a main objective and sub-objectives, and start. Every work session is tagged to a project so you can see time per project.
-- **Work sessions** with a countdown timer, editable sub-objectives, pause/resume, extend, and an estimate-vs-actual record.
+- **Projects → Milestones** — break each project into dated milestones (objectives). Completing milestones completes the project.
+- **Dashboard** — the home overview: active projects, % complete (milestones left), the dates you planned to finish milestones by, and whether you're **ahead or behind schedule**.
+- **Focus sessions** — pick the milestone you're working toward, list the tasks for that session, and run a countdown timer (pause/resume, extend, estimate-vs-actual). Each session is logged against its milestone + project.
+- **Metrics** — what you're doing to hit your goals: total productive hours, a breakdown of **which milestones** you worked on in the period, time by project, streak, estimate accuracy, and a 14-day activity chart.
 - **Pomodoro breaks** — finishing a session prompts a break; ad-hoc breaks too. Both are logged.
-- **History** of every session/break, day by day (reassign a session's project from the entry editor).
-- A **dashboard** of productivity metrics (focus time, time-by-project, streak, estimate accuracy, activity chart, etc.).
+- **History** of every session/break, day by day (with its project + milestone; reassign from the entry editor).
+- A **daily schedule** (under Settings) — mark which weekdays are work vs off, set a work-day and off-day template, and override individual dates. It shows what you *should* be doing now and nudges; it never starts/stops anything.
 
-Dark, minimal, mobile-first. Built with Next.js (App Router, TypeScript, Tailwind).
+Dark, blue-themed, mobile-first (with iOS Dynamic Island safe-area handling). Built with Next.js (App Router, TypeScript, Tailwind).
 
 ## Data storage
 

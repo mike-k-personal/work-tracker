@@ -4,7 +4,8 @@
 // Detail + edit + delete for a single history entry. There is no GET-single
 // endpoint, so we load all logs and find the one by id. Editing goes through
 // updateLog; deletion through deleteLog behind an INLINE confirm (no
-// window.confirm/alert). Back link returns to the list.
+// window.confirm/alert). Back link returns to the list. Styled to the blue-dark
+// design system; shows project + milestone Badges and the session's tasks.
 //
 // Next 16: dynamic-route `params` is a Promise even in client components — we
 // unwrap it with React.use().
@@ -21,12 +22,11 @@ import {
   getProjects,
   updateLog,
 } from "@/lib/api";
-import {
-  msToHuman,
-  prettyDate,
-  prettyTime,
-} from "@/lib/format";
+import { msToHuman, prettyDate, prettyTime } from "@/lib/format";
 import EntryEditor from "@/components/EntryEditor";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function HistoryDetailPage({
   params,
@@ -118,44 +118,50 @@ export default function HistoryDetailPage({
   }, [id, router]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:py-8">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
       <Link
         href="/history"
-        className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-text"
+        className="mb-5 inline-flex items-center gap-1.5 font-mono text-xs font-medium uppercase tracking-wider text-muted transition-colors hover:text-accent"
       >
         <svg
-          width="18"
-          height="18"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden="true"
         >
           <path d="m15 18-6-6 6-6" />
         </svg>
-        History
+        Log
       </Link>
 
       {!loaded ? (
-        <div className="h-40 animate-pulse rounded-2xl border border-border bg-surface" />
+        <Card className="h-56 animate-pulse" />
       ) : !entry ? (
-        <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center">
-          <p className="text-sm font-medium text-text">Entry not found</p>
-          <p className="mt-1 text-xs text-muted">
-            It may have been deleted. Return to your history.
-          </p>
-          {error && <p className="mt-3 text-xs text-danger">{error}</p>}
-        </div>
+        <EmptyState
+          title="Entry not found"
+          description="It may have been deleted. Return to your history log."
+          action={
+            <Link href="/history" className="btn-secondary px-4 py-2.5 text-sm">
+              Back to history
+            </Link>
+          }
+        />
       ) : editing ? (
-        <>
-          <h1 className="mb-5 text-xl font-semibold tracking-tight">
-            Edit entry
+        <div className="animate-fade-up">
+          <p className="eyebrow mb-1.5">Edit entry</p>
+          <h1 className="mb-5 font-display text-[1.7rem] font-semibold leading-tight tracking-tight text-text">
+            {entry.kind === "work" ? "Edit session" : "Edit break"}
           </h1>
           {error && (
-            <p className="mb-4 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <p
+              role="alert"
+              className="mb-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+            >
               {error}
             </p>
           )}
@@ -169,7 +175,7 @@ export default function HistoryDetailPage({
               setError(null);
             }}
           />
-        </>
+        </div>
       ) : (
         <DetailView
           entry={entry}
@@ -213,112 +219,122 @@ function DetailView({
   const overMs = entry.activeMs - entry.estimateMs;
 
   return (
-    <article>
-      {/* Header */}
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mb-1 flex items-center gap-2">
+    <article className="flex flex-col gap-6">
+      {/* Header card — the instrument readout for this entry. */}
+      <Card
+        className="animate-fade-up overflow-hidden p-0"
+        style={{ animationDelay: "0ms" }}
+      >
+        <header className="border-b border-border/70 px-5 py-5">
+          <div className="mb-3 flex items-center gap-2.5">
             <span
-              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                isWork ? "bg-accent" : "bg-success"
+              className={`h-2 w-2 shrink-0 rounded-full ${
+                completed
+                  ? isWork
+                    ? "bg-accent shadow-[0_0_8px_var(--glow)]"
+                    : "bg-success"
+                  : "bg-danger"
               }`}
               aria-hidden="true"
             />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {isWork ? "Work session" : "Break"}
-            </span>
+            <span className="eyebrow">{isWork ? "Work session" : "Break"}</span>
+            <Badge tone={completed ? "success" : "danger"} className="ml-auto">
+              {completed ? "Completed" : "Cancelled"}
+            </Badge>
           </div>
-          {isWork && entry.projectName && (
-            <p className="mb-0.5 truncate text-sm font-medium text-accent">
-              {entry.projectName}
-            </p>
-          )}
-          <h1 className="break-words text-xl font-semibold tracking-tight">
+
+          <h1
+            className={`break-words font-display text-[1.6rem] font-semibold leading-tight tracking-tight ${
+              completed ? "text-text" : "text-faint line-through"
+            }`}
+          >
             {entry.taskName || (isWork ? "Untitled session" : "Break")}
           </h1>
-        </div>
-        <span
-          className={`mt-1 shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            completed
-              ? "bg-success/15 text-success"
-              : "bg-danger/15 text-danger"
-          }`}
-        >
-          {completed ? "Completed" : "Cancelled"}
-        </span>
-      </div>
 
-      {/* Stats */}
-      <dl className="grid grid-cols-2 gap-3">
-        <Stat label="Active time" value={msToHuman(entry.activeMs)} />
-        <Stat label="Estimate" value={msToHuman(entry.estimateMs)} />
-        <Stat
-          label="Started"
-          value={prettyDate(entry.startedAt)}
-          mono
-        />
-        <Stat label="Ended" value={prettyTime(entry.endedAt)} mono />
-        {entry.extensionsMs > 0 && (
-          <Stat label="Extensions" value={msToHuman(entry.extensionsMs)} />
-        )}
-        {entry.estimateMs > 0 && (
-          <Stat
-            label={overMs >= 0 ? "Over estimate" : "Under estimate"}
-            value={msToHuman(Math.abs(overMs))}
-          />
-        )}
-      </dl>
+          {isWork && (entry.projectName || entry.milestoneName) && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {entry.projectName && (
+                <Badge tone="accent">{entry.projectName}</Badge>
+              )}
+              {entry.milestoneName && (
+                <Badge tone="muted">{entry.milestoneName}</Badge>
+              )}
+            </div>
+          )}
+        </header>
 
-      {/* Objectives */}
+        {/* Readout grid — hairline-divided instrument cells. */}
+        <dl className="grid grid-cols-2 divide-x divide-y divide-border/70">
+          <Stat label="Active time" value={msToHuman(entry.activeMs)} accent />
+          <Stat label="Estimate" value={msToHuman(entry.estimateMs)} />
+          <Stat label="Started" value={prettyDate(entry.startedAt)} />
+          <Stat label="Ended" value={prettyTime(entry.endedAt)} />
+          {entry.extensionsMs > 0 && (
+            <Stat label="Extensions" value={msToHuman(entry.extensionsMs)} />
+          )}
+          {entry.estimateMs > 0 && (
+            <Stat
+              label={overMs >= 0 ? "Over estimate" : "Under estimate"}
+              value={msToHuman(Math.abs(overMs))}
+              tone={overMs > 0 ? "danger" : "success"}
+            />
+          )}
+        </dl>
+      </Card>
+
+      {/* Tasks (objectives) */}
       {isWork && (
-        <section className="mt-6">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold tracking-tight">
-            Objectives
-            <span className="text-xs font-normal text-muted tabular-nums">
+        <section className="animate-fade-up" style={{ animationDelay: "70ms" }}>
+          <div className="mb-3 flex items-center gap-3">
+            <span className="eyebrow text-muted">Tasks</span>
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 bg-gradient-to-r from-border-strong/80 to-transparent"
+            />
+            <span className="readout shrink-0 text-[0.6875rem] font-medium uppercase tracking-wider text-muted tabular-nums">
               {entry.objectivesCompleted}/{entry.objectivesTotal}
             </span>
-          </h2>
+          </div>
           {entry.objectives.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-xs text-muted">
-              No objectives were recorded.
+            <p className="rounded-xl border border-dashed border-border bg-surface/40 px-4 py-3 text-xs text-muted">
+              No tasks were recorded.
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {entry.objectives.map((o) => (
-                <li
-                  key={o.id}
-                  className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5"
-                >
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                      o.done
-                        ? "border-accent bg-accent text-accent-contrast"
-                        : "border-border"
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {o.done && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    )}
-                  </span>
-                  <span
-                    className={`text-sm ${
-                      o.done ? "text-muted line-through" : "text-text"
-                    }`}
-                  >
-                    {o.text}
-                  </span>
+                <li key={o.id}>
+                  <Card className="flex items-center gap-3 px-4 py-3">
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                        o.done
+                          ? "border-accent bg-accent text-accent-contrast shadow-[0_0_8px_var(--glow)]"
+                          : "border-border-strong"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {o.done && (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      )}
+                    </span>
+                    <span
+                      className={`text-sm ${
+                        o.done ? "text-faint line-through" : "text-text"
+                      }`}
+                    >
+                      {o.text}
+                    </span>
+                  </Card>
                 </li>
               ))}
             </ul>
@@ -327,32 +343,38 @@ function DetailView({
       )}
 
       {error && (
-        <p className="mt-5 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+        >
           {error}
         </p>
       )}
 
       {/* Actions */}
-      <div className="mt-7 flex flex-col gap-3">
+      <div
+        className="animate-fade-up flex flex-col gap-3"
+        style={{ animationDelay: "140ms" }}
+      >
         <button
           type="button"
           onClick={onEdit}
-          className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-hover"
+          className="btn-primary h-12 px-5 text-sm"
         >
           Edit entry
         </button>
 
         {confirmingDelete ? (
-          <div className="rounded-xl border border-danger/40 bg-danger/10 p-3">
+          <Card className="border-danger/30 bg-danger/10 p-4">
             <p className="mb-3 text-sm text-text">
-              Delete this entry permanently? This can’t be undone.
+              Delete this entry permanently? This can&rsquo;t be undone.
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={onConfirmDelete}
                 disabled={deleting}
-                className="flex-1 rounded-lg bg-danger px-3 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex-1 rounded-xl bg-danger px-3 py-2.5 text-sm font-semibold text-accent-contrast transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
@@ -360,17 +382,17 @@ function DetailView({
                 type="button"
                 onClick={onCancelDelete}
                 disabled={deleting}
-                className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-secondary flex-1 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Keep
               </button>
             </div>
-          </div>
+          </Card>
         ) : (
           <button
             type="button"
             onClick={onAskDelete}
-            className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium text-danger transition-colors hover:border-danger/40 hover:bg-danger/10"
+            className="w-full rounded-xl border border-border bg-surface-2/60 px-4 py-3 text-sm font-medium text-danger transition-colors hover:border-danger/40 hover:bg-danger/10"
           >
             Delete entry
           </button>
@@ -383,22 +405,28 @@ function DetailView({
 function Stat({
   label,
   value,
-  mono = false,
+  accent = false,
+  tone,
 }: {
   label: string;
   value: string;
-  mono?: boolean;
+  accent?: boolean;
+  tone?: "success" | "danger";
 }) {
+  const valueColor =
+    tone === "danger"
+      ? "text-danger"
+      : tone === "success"
+        ? "text-success"
+        : accent
+          ? "text-accent"
+          : "text-text";
   return (
-    <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">
+    <div className="px-5 py-4">
+      <dt className="font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-faint">
         {label}
       </dt>
-      <dd
-        className={`mt-0.5 text-sm font-medium text-text ${
-          mono ? "tabular-nums" : ""
-        }`}
-      >
+      <dd className={`readout mt-1 text-base font-medium tabular-nums ${valueColor}`}>
         {value}
       </dd>
     </div>
